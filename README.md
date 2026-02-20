@@ -1,5 +1,7 @@
 # Prompt-to-Visualization
 
+<img width="1350" height="630" alt="image" src="https://github.com/user-attachments/assets/526bfc9b-6a2b-4927-875d-f4f28ff99d5f" />
+
 > **AI-powered data visualization generator** — ask a question about your data in natural language and get an interactive chart with AI insights, powered by Google Gemini and BigQuery.
 
 ---
