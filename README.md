@@ -30,26 +30,26 @@ The system uses a **Google ADK agent** (Gemini 2.0 Flash) that autonomously insp
 
 ```mermaid
 flowchart TD
-    subgraph Frontend ["Frontend (React + Vite)"]
-        UI["App.jsx\nCompany / Data Mart / Prompt"]
-        CR["ChartRenderer\n(Recharts)"]
+    subgraph Frontend ["Frontend (Firebase Hosting)"]
+        UI["App.jsx<br>Company / Data Mart / Prompt"]
+        CR["ChartRenderer<br>(Recharts)"]
     end
 
-    subgraph Backend ["Backend (FastAPI)"]
-        API["main.py\n/api/tables · /api/visualize"]
-        AGENT["agent.py\nGoogle ADK Agent\n(Gemini 2.0 Flash)"]
-        DM["data_manager.py\nIn-Memory DataFrame Store"]
-        BQ["bq_client.py\nBigQuery Client"]
+    subgraph Backend ["Backend (Cloud Run)"]
+        API["main.py <br> /api/tables · /api/visualize"]
+        AGENT["agent.py<br>Google ADK Agent<br>(Gemini 2.0 Flash)"]
+        DM["data_manager.py<br>In-Memory DataFrame Store"]
+        BQ["bq_client.py<br>BigQuery Client"]
     end
 
     subgraph GCP ["Google Cloud"]
-        BQW["BigQuery\nData Warehouse"]
-        VERTEX["Vertex AI\nGemini 2.0 Flash"]
+        BQW["BigQuery<br>Data Warehouse"]
+        VERTEX["Vertex AI<br>Gemini 2.0 Flash"]
     end
 
     UI -- "POST /api/visualize" --> API
     UI -- "GET /api/tables?dataset=" --> API
-    API -- "pre-fetch rows" --> BQ
+    API -- "Fetch rows" --> BQ
     BQ -- "SQL query" --> BQW
     API -- "run agent" --> AGENT
     AGENT -- "tool calls" --> DM
