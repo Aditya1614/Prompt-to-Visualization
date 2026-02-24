@@ -2,7 +2,7 @@
  * API service for communicating with the backend.
  */
 
-const API_BASE = "http://localhost:8000";
+const API_BASE = import.meta.env.VITE_API_URL || "https://prompt2viz-backend-767416511940.asia-southeast2.run.app";
 
 /**
  * Call the /api/visualize endpoint.

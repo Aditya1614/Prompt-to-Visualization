@@ -22,7 +22,12 @@ class BQClient:
     """Wrapper around BigQuery client for table listing, stats, and column fetching."""
 
     def __init__(self):
-        self._client = bigquery.Client(project=PROJECT_ID, location=BQ_LOCATION)
+        # If PROJECT_ID or BQ_LOCATION is missing, bigquery.Client() will 
+        # try to use Application Default Credentials (ADC).
+        self._client = bigquery.Client(
+            project=PROJECT_ID, 
+            location=BQ_LOCATION
+        )
 
     def _dataset_ref(self, dataset: str) -> str:
         return f"{PROJECT_ID}.{dataset}"
@@ -34,7 +39,7 @@ class BQClient:
         return [{"name": table.table_id} for table in tables]
 
     def fetch_all_rows(
-        self, table_name: str, dataset: str, limit: int = 10000
+        self, table_name: str, dataset: str, limit: int = 100000
     ) -> list[dict]:
         """
         Fetch ALL columns from a table, limited to `limit` rows.
@@ -46,7 +51,7 @@ class BQClient:
         return [dict(row) for row in result]
 
     def fetch_columns(
-        self, table_name: str, columns: list[str], dataset: str, limit: int = 10000
+        self, table_name: str, columns: list[str], dataset: str, limit: int = 100000
     ) -> list[dict]:
         """
         Fetch specific columns from a table, limited to `limit` rows.
