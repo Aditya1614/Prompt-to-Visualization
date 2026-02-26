@@ -330,7 +330,7 @@ Open **http://localhost:5173** in your browser.
 
 ## Limitations
 
-- **Row limit**: Up to **10,000 rows** per table query to keep response times reasonable.
+- **Row limit**: Up to **100,000 rows** per table query to keep response times reasonable.
 - **Single table**: Each query operates on one table — no cross-table JOINs.
 - **Model dependency**: Visualization quality depends on Gemini 2.0 Flash's interpretation of the prompt.
 - **No caching**: Every request re-fetches data from BigQuery.
