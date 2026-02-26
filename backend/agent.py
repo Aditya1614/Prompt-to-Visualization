@@ -20,8 +20,6 @@ os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
 
 from google.adk.agents import Agent
 from data_manager import data_manager
-from bq_client import bq
-
 
 # ──────────────────────────────────────────────
 # Tool functions (auto-wrapped by ADK as FunctionTools)
@@ -68,39 +66,7 @@ def query_data(data_id: str, operation: str) -> dict:
     return data_manager.query_data(data_id, operation)
 
 
-def fetch_columns(table_name: str, columns: str, data_id: str) -> dict:
-    """Fetch specific columns from a BigQuery table into the local DataFrame store.
 
-    Use this tool AFTER reviewing the table stats from get_data_schema to select
-    only the columns you need for visualization. The fetched data (up to 10,000 rows)
-    is stored locally and can then be queried with query_data.
-
-    Args:
-        table_name: The BigQuery table name (e.g., "master_customer").
-        columns: Comma-separated column names to fetch (e.g., "name,city,revenue").
-        data_id: The data_id to store the fetched data under (same one from get_data_schema).
-
-    Returns:
-        dict: A dictionary with 'status', 'rows_fetched', 'columns_fetched',
-              or 'error' if the fetch failed.
-    """
-    try:
-        col_list = [c.strip() for c in columns.split(",") if c.strip()]
-        if not col_list:
-            return {"error": "No columns specified. Provide comma-separated column names."}
-
-        rows = bq.fetch_columns(table_name, col_list, limit=10000)
-        # Store the fetched data in the data manager
-        data_manager.store_data_with_id(data_id, rows)
-
-        return {
-            "status": "success",
-            "rows_fetched": len(rows),
-            "columns_fetched": col_list,
-            "message": f"Fetched {len(rows)} rows with columns {col_list}. Use query_data with data_id='{data_id}' to analyze.",
-        }
-    except Exception as e:
-        return {"error": f"Failed to fetch columns: {str(e)}"}
 
 
 # ──────────────────────────────────────────────
@@ -113,23 +79,23 @@ SYSTEM_INSTRUCTION = """You are a Data Visualization Agent. Your ONLY purpose is
 You MUST call tools to get real data before generating your response.
 NEVER generate chart data from your imagination. The "data" field MUST contain values returned by query_data.
 If you return a response without calling query_data first, your output is WRONG.
+You are strictly forbidden from outputting the final JSON response until AFTER you have received the results from query_data.
 
-## Step-by-Step Workflow (MANDATORY — do NOT skip any step)
+## IMPORTANT WORKFLOW:
+You do NOT have the data values yet. You must follow a 2-step process.
 
-### For JSON-pasted data (data_id is a short UUID like "abc123"):
-Step 1: Call `get_data_schema(data_id)` → see columns, types, sample rows
-Step 2: Call `query_data(data_id, query)` → get aggregated data for the chart
-Step 3: Use the query_data result to build your JSON response
+**STEP 1: Call `query_data`**
+You must formulate a pandas query based on the user's request, and call the `query_data(data_id, query)` tool. 
+- Example pandas queries:
+  - "df['city'].value_counts().reset_index().head(10)" 
+  - "df.groupby('city').size().reset_index(name='count').sort_values('count', ascending=False).head(10)"
+- After calling the tool, STOP and wait for the tool to return the result. DO NOT output anything else.
 
-### For BigQuery tables (data_id starts with "bq_"):
-Step 1: Call `get_data_schema(data_id)` → see column names, types, and stats (min/max/mean/distinct). No raw rows.
-Step 2: Based on the user's question and column stats, decide which columns you need.
-Step 3: Call `fetch_columns(table_name, columns, data_id)` → fetches real rows into a DataFrame.
-Step 4: Call `query_data(data_id, query)` → aggregate/filter the fetched data for the chart.
-Step 5: Use the query_data result to build your JSON response.
+**STEP 2: Return final JSON**
+Only AFTER you receive the output of `query_data`, you must return the final visualization configuration.
+Your final output must be pure JSON with no markdown formatting.
 
-## Response Format
-After completing ALL tool calls above, return ONLY a valid JSON object:
+```json
 {
     "rejected": false,
     "chart_type": "line|bar|pie|scatter|area",
@@ -143,26 +109,12 @@ After completing ALL tool calls above, return ONLY a valid JSON object:
     },
     "insight": "A brief observation about the data."
 }
+```
 
-The "data" field MUST contain the actual data returned by query_data. NEVER make up data.
-
-## Chart Type Guidelines
-- **line**: Time series, trends over time
-- **bar**: Category comparisons, rankings
-- **pie**: Proportions (7 or fewer categories)
-- **scatter**: Correlations between two numeric variables
-- **area**: Cumulative trends, volume over time
-
-## Rejection Rules
-If the question is NOT about data visualization, return:
-{"rejected": true, "reject_reason": "I can only help with data visualization."}
-
-## Important Rules
-- ALWAYS call get_data_schema FIRST — NEVER skip this step.
-- ALWAYS call query_data to get chart data — NEVER skip this step.  
-- For BigQuery tables, ALWAYS call fetch_columns between get_data_schema and query_data.
-- Return ONLY valid JSON, no markdown fences, no extra text.
-- The data field must contain REAL data from query_data, not placeholders.
+## Critical Constraints
+1. The `data` field in the JSON MUST contain the exact records returned by `query_data`. NEVER guess or make up numbers.
+2. If the user question is completely unrelated to data visualization, return {"rejected": true, "reject_reason": "..."}.
+3. The available chart types are: line, bar, pie, scatter, area.
 """
 
 # ──────────────────────────────────────────────
@@ -176,5 +128,5 @@ root_agent = Agent(
     model="gemini-2.0-flash",
     description="Agent that creates data visualizations from user datasets.",
     instruction=SYSTEM_INSTRUCTION,
-    tools=[get_data_schema, query_data, fetch_columns],
+    tools=[query_data],
 )

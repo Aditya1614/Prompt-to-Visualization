@@ -21,3 +21,7 @@ backend/venv/
 # Environment Variables
 .env
 *.env
+
+# Debug / test files (not for deployment)
+backend/debug.txt
+backend/test_vis.py

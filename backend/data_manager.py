@@ -67,9 +67,17 @@ class DataManager:
             return {"error": f"No data found for id '{data_id}'"}
 
         try:
+            import datetime as _dt
             # Execute the pandas operation
-            result = eval(operation, {"df": df, "pd": pd})
-
+            # Provide a rich eval context so LLM-generated date expressions work
+            eval_context = {
+                "df": df,
+                "pd": pd,
+                "datetime": _dt,
+                "date": _dt.date,
+                "timedelta": _dt.timedelta,
+            }
+            result = eval(operation, eval_context)
             # Convert result to records
             if isinstance(result, pd.DataFrame):
                 return {"data": result.to_dict(orient="records"), "row_count": len(result)}
