@@ -1,5 +1,7 @@
 import { useState, useEffect } from "react";
 import ChartRenderer from "./components/ChartRenderer";
+import LoginPage from "./components/LoginPage";
+import { useAuth } from "./contexts/AuthContext";
 import { generateVisualization, fetchTables } from "./services/api";
 import "./App.css";
 
@@ -10,6 +12,7 @@ const COMPANIES = [
 ];
 
 export default function App() {
+  const { user, loading: authLoading, logout } = useAuth();
   const [prompt, setPrompt] = useState("");
   const [result, setResult] = useState(null);
   const [loading, setLoading] = useState(false);
@@ -101,12 +104,52 @@ export default function App() {
 
   const companyLabel = COMPANIES.find((c) => c.value === selectedCompany)?.label;
 
+  // ─── Auth gate ───
+  if (authLoading) {
+    return (
+      <div className="page-bg">
+        <div className="auth-loading">
+          <div className="loading-spinner-lg" />
+          <p className="loading-text">Checking authentication...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!user) {
+    return <LoginPage />;
+  }
+
   return (
     <div className="page-bg">
       <div className="card-container">
 
         {/* ─── Left Sidebar ─── */}
         <aside className="sidebar">
+          {/* User header */}
+          <div className="user-header">
+            <div className="user-info">
+              {user.avatar_url ? (
+                <img className="user-avatar" src={user.avatar_url} alt={user.name} />
+              ) : (
+                <div className="user-avatar-placeholder">
+                  {user.name?.charAt(0)?.toUpperCase() || "?"}
+                </div>
+              )}
+              <div className="user-details">
+                <span className="user-name">{user.name}</span>
+                <span className="user-email">{user.email}</span>
+              </div>
+            </div>
+            <button className="logout-btn" onClick={logout} title="Logout">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
+              </svg>
+            </button>
+          </div>
+
           <div className="sidebar-header">
             <span className="sparkle-icon">✨</span>
             <h2 className="sidebar-title">AI Visualization</h2>

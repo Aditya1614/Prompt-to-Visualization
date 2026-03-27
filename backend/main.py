@@ -8,11 +8,13 @@ and returns chart config + insight.
 import json
 import os
 import re
+import secrets
 import uuid
 
 from dotenv import load_dotenv
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import RedirectResponse
 
 from google.adk.runners import InMemoryRunner
 from google import genai
@@ -21,6 +23,15 @@ from google.genai import types
 from agent import root_agent
 from data_manager import data_manager
 from bq_client import bq, ALLOWED_DATASETS
+from auth import (
+    build_lark_auth_url,
+    exchange_code_for_token,
+    get_lark_user_info,
+    create_session_jwt,
+    get_current_user,
+    SESSION_COOKIE_NAME,
+    FRONTEND_URL,
+)
 from models import (
     VisualizeRequest,
     VisualizeResponse,
@@ -251,7 +262,79 @@ def parse_agent_response(raw: str) -> VisualizeResponse:
 
 
 # ──────────────────────────────────────────────
-# Endpoints
+# Auth Endpoints (public)
+# ──────────────────────────────────────────────
+
+@app.get("/api/auth/login")
+async def auth_login():
+    """Redirect the user to Lark's OAuth authorization page."""
+    state = secrets.token_urlsafe(16)
+    auth_url = build_lark_auth_url(state)
+    return RedirectResponse(url=auth_url)
+
+
+@app.get("/api/auth/callback")
+async def auth_callback(code: str = "", error: str = "", state: str = ""):
+    """
+    Handle the OAuth callback from Lark.
+    Exchanges auth code for token, fetches user info, creates session.
+    """
+    if error == "access_denied":
+        return RedirectResponse(url=f"{FRONTEND_URL}?auth_error=access_denied")
+
+    if not code:
+        raise HTTPException(status_code=400, detail="Missing authorization code")
+
+    # Exchange code for user_access_token
+    token_data = await exchange_code_for_token(code)
+    access_token = token_data.get("access_token", "")
+
+    if not access_token:
+        raise HTTPException(status_code=401, detail="No access token received from Lark")
+
+    # Fetch user info from Lark
+    user_info = await get_lark_user_info(access_token)
+
+    # Create a session JWT
+    session_token = create_session_jwt(user_info)
+
+    # Redirect to frontend with session cookie
+    response = RedirectResponse(url=FRONTEND_URL, status_code=302)
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=session_token,
+        httponly=True,
+        samesite="lax",
+        max_age=86400,  # 24 hours
+        secure=False,   # Set to True in production with HTTPS
+    )
+    return response
+
+
+@app.get("/api/auth/me")
+async def auth_me(user: dict = Depends(get_current_user)):
+    """Return the current authenticated user's info."""
+    return {
+        "authenticated": True,
+        "user": {
+            "open_id": user.get("open_id", ""),
+            "name": user.get("name", "Unknown"),
+            "email": user.get("email", ""),
+            "avatar_url": user.get("avatar_url", ""),
+        },
+    }
+
+
+@app.post("/api/auth/logout")
+async def auth_logout():
+    """Clear the session cookie."""
+    response = RedirectResponse(url=FRONTEND_URL, status_code=302)
+    response.delete_cookie(key=SESSION_COOKIE_NAME)
+    return response
+
+
+# ──────────────────────────────────────────────
+# Public Endpoints
 # ──────────────────────────────────────────────
 
 @app.get("/api/health")
@@ -260,8 +343,12 @@ async def health_check():
     return {"status": "ok", "agent": "visualization_agent", "framework": "google-adk"}
 
 
+# ──────────────────────────────────────────────
+# Protected Endpoints (require Lark SSO)
+# ──────────────────────────────────────────────
+
 @app.get("/api/tables", response_model=TableListResponse)
-async def list_tables(dataset: str = ""):
+async def list_tables(dataset: str = "", user: dict = Depends(get_current_user)):
     """List available BigQuery tables for the given dataset (company)."""
     # Force reload
     if not dataset or dataset not in ALLOWED_DATASETS:
@@ -275,7 +362,7 @@ async def list_tables(dataset: str = ""):
 
 
 @app.post("/api/count-tokens", response_model=CountTokensResponse)
-async def count_tokens(request: VisualizeRequest):
+async def count_tokens(request: VisualizeRequest, user: dict = Depends(get_current_user)):
     """Estimate the token count for the prompt and data."""
     if not request.data:
         text_to_count = request.prompt
@@ -294,7 +381,7 @@ async def count_tokens(request: VisualizeRequest):
 
 
 @app.post("/api/visualize", response_model=VisualizeResponse)
-async def visualize(request: VisualizeRequest):
+async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_user)):
     """
     Generate a visualization from a user prompt and data.
 
