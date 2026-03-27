@@ -1,15 +1,30 @@
 /**
  * API service for communicating with the backend.
+ * Uses Authorization Bearer token from localStorage for auth.
  */
+
+import { getAuthToken } from "../contexts/AuthContext";
 
 const API_BASE = import.meta.env.VITE_API_URL || "https://prompt2viz-backend-767416511940.asia-southeast2.run.app";
 
 /**
- * Handle response — if 401, redirect to login.
+ * Build headers with auth token.
+ */
+function authHeaders(extra = {}) {
+    const headers = { ...extra };
+    const token = getAuthToken();
+    if (token) {
+        headers["Authorization"] = `Bearer ${token}`;
+    }
+    return headers;
+}
+
+/**
+ * Handle response — if 401, reload to trigger login page.
  */
 async function handleResponse(response) {
     if (response.status === 401) {
-        // Session expired or not authenticated — reload to trigger login page
+        localStorage.removeItem("lark_session_token");
         window.location.reload();
         throw new Error("Session expired. Please login again.");
     }
@@ -37,8 +52,7 @@ export async function generateVisualization(prompt, { data, tableName, dataset }
 
     const response = await fetch(`${API_BASE}/api/visualize`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
+        headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
     });
 
@@ -52,7 +66,7 @@ export async function generateVisualization(prompt, { data, tableName, dataset }
  */
 export async function fetchTables(dataset) {
     const response = await fetch(`${API_BASE}/api/tables?dataset=${encodeURIComponent(dataset)}`, {
-        credentials: "include",
+        headers: authHeaders(),
     });
     return handleResponse(response);
 }

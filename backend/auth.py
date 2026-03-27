@@ -170,17 +170,26 @@ def verify_session_jwt(token: str) -> dict:
 
 def get_current_user(request: Request) -> dict:
     """
-    FastAPI dependency that extracts and validates the session cookie.
+    FastAPI dependency that extracts and validates the session token.
 
-    Usage:
-        @app.get("/protected")
-        async def protected(user: dict = Depends(get_current_user)):
-            return {"hello": user["name"]}
+    Checks (in order):
+    1. Authorization: Bearer <token> header (for cross-domain frontend)
+    2. Session cookie (for same-domain setups)
 
     Raises:
         HTTPException 401: If no valid session exists
     """
-    token = request.cookies.get(SESSION_COOKIE_NAME)
+    token = None
+
+    # Check Authorization header first
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        token = auth_header[7:]
+
+    # Fall back to cookie
+    if not token:
+        token = request.cookies.get(SESSION_COOKIE_NAME)
+
     if not token:
         raise HTTPException(
             status_code=401,

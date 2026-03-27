@@ -298,17 +298,10 @@ async def auth_callback(code: str = "", error: str = "", state: str = ""):
     # Create a session JWT
     session_token = create_session_jwt(user_info)
 
-    # Redirect to frontend with session cookie
-    response = RedirectResponse(url=FRONTEND_URL, status_code=302)
-    response.set_cookie(
-        key=SESSION_COOKIE_NAME,
-        value=session_token,
-        httponly=True,
-        samesite="lax",
-        max_age=86400,  # 24 hours
-        secure=False,   # Set to True in production with HTTPS
-    )
-    return response
+    # Redirect to frontend with token in URL hash
+    # (hash fragments are not sent to the server, keeping the token client-side only)
+    redirect_url = f"{FRONTEND_URL}#token={session_token}"
+    return RedirectResponse(url=redirect_url, status_code=302)
 
 
 @app.get("/api/auth/me")
@@ -327,10 +320,8 @@ async def auth_me(user: dict = Depends(get_current_user)):
 
 @app.post("/api/auth/logout")
 async def auth_logout():
-    """Clear the session cookie."""
-    response = RedirectResponse(url=FRONTEND_URL, status_code=302)
-    response.delete_cookie(key=SESSION_COOKIE_NAME)
-    return response
+    """Logout endpoint. Token is cleared client-side from localStorage."""
+    return {"status": "ok", "message": "Logged out"}
 
 
 # ──────────────────────────────────────────────
