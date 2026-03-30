@@ -48,13 +48,19 @@ def build_lark_auth_url(state: str) -> str:
     Returns:
         The full Lark authorization URL to redirect the user to.
     """
-    params = {
-        "client_id": LARK_CLIENT_ID,
-        "redirect_uri": LARK_REDIRECT_URI,
-        "state": state,
-        "scope": LARK_SCOPES,
-    }
-    return f"{LARK_AUTH_URL}?{urlencode(params)}"
+    from urllib.parse import quote
+
+    # Use quote() (not quote_plus) to match Lark's expected encoding
+    redirect_uri_encoded = quote(LARK_REDIRECT_URI, safe="")
+    scope_encoded = quote(LARK_SCOPES, safe="")
+
+    return (
+        f"{LARK_AUTH_URL}"
+        f"?client_id={LARK_CLIENT_ID}"
+        f"&redirect_uri={redirect_uri_encoded}"
+        f"&state={state}"
+        f"&scope={scope_encoded}"
+    )
 
 
 async def exchange_code_for_token(code: str) -> dict:
