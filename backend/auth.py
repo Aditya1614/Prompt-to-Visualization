@@ -35,7 +35,7 @@ SESSION_COOKIE_NAME = "lark_session"
 SESSION_EXPIRY_HOURS = 24
 
 # Lark permission scopes
-LARK_SCOPES = "contact:user.base:readonly"
+LARK_SCOPES = "contact:user.base:readonly contact:user.email:readonly"
 
 
 def build_lark_auth_url(state: str) -> str:

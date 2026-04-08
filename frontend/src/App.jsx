@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import ChartRenderer from "./components/ChartRenderer";
 import LoginPage from "./components/LoginPage";
 import { useAuth } from "./contexts/AuthContext";
-import { generateVisualization, fetchTables } from "./services/api";
+import { generateVisualization, fetchTables, fetchQuota } from "./services/api";
 import "./App.css";
 
 const COMPANIES = [
@@ -28,6 +28,10 @@ export default function App() {
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
   const [tableDropdownOpen, setTableDropdownOpen] = useState(false);
 
+  // Token quota
+  const [quota, setQuota] = useState(null);
+  const [showAccessPopup, setShowAccessPopup] = useState(false);
+
   // Load tables when company changes
   useEffect(() => {
     if (!selectedCompany) {
@@ -37,6 +41,25 @@ export default function App() {
     }
     loadTables(selectedCompany);
   }, [selectedCompany]);
+
+  // Load quota when user logs in
+  useEffect(() => {
+    if (user) {
+      loadQuota();
+    }
+  }, [user]);
+
+  const loadQuota = async () => {
+    try {
+      const q = await fetchQuota();
+      setQuota(q);
+      if (!q.registered) {
+        setShowAccessPopup(true);
+      }
+    } catch (err) {
+      console.error("Failed to load quota:", err);
+    }
+  };
 
   const loadTables = async (dataset) => {
     setTablesLoading(true);
@@ -85,6 +108,10 @@ export default function App() {
         setError(response.reject_reason || "Request was rejected.");
       } else {
         setResult(response);
+        // Update quota from response
+        if (response.quota) {
+          setQuota(response.quota);
+        }
       }
     } catch (err) {
       setError(err.message || "An unexpected error occurred.");
@@ -100,7 +127,7 @@ export default function App() {
     }
   };
 
-  const canGenerate = prompt.trim() && selectedTable && !loading;
+  const canGenerate = prompt.trim() && selectedTable && !loading && quota?.registered && quota?.remaining > 0;
 
   const companyLabel = COMPANIES.find((c) => c.value === selectedCompany)?.label;
 
@@ -149,6 +176,27 @@ export default function App() {
               </svg>
             </button>
           </div>
+
+          {/* Quota bar */}
+          {quota?.registered && (
+            <div className="quota-bar-container">
+              <div className="quota-bar-header">
+                <span className="quota-label">Daily Token Quota</span>
+                <span className="quota-numbers">
+                  {(quota.remaining).toLocaleString()} left
+                </span>
+              </div>
+              <div className="quota-track">
+                <div
+                  className={`quota-fill ${quota.remaining / quota.daily_limit < 0.1 ? "danger" : quota.remaining / quota.daily_limit < 0.3 ? "warning" : ""}`}
+                  style={{ width: `${Math.min(100, (quota.used_today / quota.daily_limit) * 100)}%` }}
+                />
+              </div>
+              <div className="quota-sub">
+                {quota.used_today.toLocaleString()} / {quota.daily_limit.toLocaleString()} used
+              </div>
+            </div>
+          )}
 
           <div className="sidebar-header">
             <span className="sparkle-icon">✨</span>
@@ -329,6 +377,30 @@ export default function App() {
         </main>
 
       </div>
+
+      {/* Unregistered user popup */}
+      {showAccessPopup && (
+        <div className="popup-overlay">
+          <div className="popup-card">
+            <span className="popup-icon">🔒</span>
+            <h3 className="popup-title">Access Required</h3>
+            <p className="popup-desc">
+              Your account (<strong>{user?.email}</strong>) is not registered to use the AI Visualization service.
+            </p>
+            <p className="popup-desc">
+              Please contact the <strong>Data Team</strong> to request access.
+            </p>
+            <div className="popup-actions">
+              <button className="popup-btn-secondary" onClick={() => setShowAccessPopup(false)}>
+                Dismiss
+              </button>
+              <button className="popup-btn-primary" onClick={logout}>
+                Logout
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

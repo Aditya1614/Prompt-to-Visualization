@@ -78,3 +78,14 @@ export async function healthCheck() {
     const response = await fetch(`${API_BASE}/api/health`);
     return response.json();
 }
+
+/**
+ * Fetch the current user's token quota info.
+ * @returns {Promise<Object>} { registered, email, daily_limit, used_today, remaining, date }
+ */
+export async function fetchQuota() {
+    const response = await fetch(`${API_BASE}/api/quota`, {
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}

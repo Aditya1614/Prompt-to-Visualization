@@ -46,6 +46,16 @@ class TableListResponse(BaseModel):
     tables: list[TableInfo] = Field(default_factory=list, description="Available tables")
 
 
+class QuotaInfo(BaseModel):
+    """Token quota information for a user."""
+    registered: bool = Field(True, description="Whether the user is registered for quota")
+    email: str = Field("", description="User's email")
+    daily_limit: int = Field(0, description="Daily token limit")
+    used_today: int = Field(0, description="Tokens used today")
+    remaining: int = Field(0, description="Tokens remaining today")
+    date: str = Field("", description="Current date (quota resets daily)")
+
+
 class VisualizeResponse(BaseModel):
     """Response schema from the /api/visualize endpoint."""
     rejected: bool = Field(False, description="Whether the request was rejected")
@@ -54,3 +64,4 @@ class VisualizeResponse(BaseModel):
     chart_config: Optional[ChartConfig] = Field(None, description="Chart configuration")
     insight: str = Field("", description="AI-generated insight about the data")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage statistics")
+    quota: Optional[QuotaInfo] = Field(None, description="Updated quota info after request")

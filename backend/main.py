@@ -40,7 +40,9 @@ from models import (
     CountTokensResponse,
     TableListResponse,
     TableInfo,
+    QuotaInfo,
 )
+from token_quota import get_quota_info, consume_tokens, is_registered
 
 # Load environment variables
 load_dotenv()
@@ -338,6 +340,13 @@ async def health_check():
 # Protected Endpoints (require Lark SSO)
 # ──────────────────────────────────────────────
 
+@app.get("/api/quota")
+async def get_user_quota(user: dict = Depends(get_current_user)):
+    """Get the current user's token quota info."""
+    email = user.get("email", "")
+    info = get_quota_info(email)
+    return QuotaInfo(**info)
+
 @app.get("/api/tables", response_model=TableListResponse)
 async def list_tables(dataset: str = "", user: dict = Depends(get_current_user)):
     """List available BigQuery tables for the given dataset (company)."""
@@ -380,6 +389,23 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
     1. JSON mode: request.data contains the JSON array
     2. BigQuery mode: request.table_name specifies the BQ table
     """
+    email = user.get("email", "")
+
+    # Check if user is registered for quota
+    if not is_registered(email):
+        raise HTTPException(
+            status_code=403,
+            detail="You are not registered to use this service. Please contact the Data Team for access.",
+        )
+
+    # Check if user has tokens remaining
+    quota_info = get_quota_info(email)
+    if quota_info["remaining"] <= 0:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Daily token quota exceeded ({quota_info['daily_limit']:,} tokens). Quota resets tomorrow.",
+        )
+
     if not request.prompt.strip():
         raise HTTPException(status_code=400, detail="Prompt cannot be empty")
 
@@ -422,6 +448,14 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
 
         response = parse_agent_response(raw_response)
         response.token_usage = token_usage
+
+        # Deduct tokens from quota
+        try:
+            updated_quota = consume_tokens(email, token_usage.total_tokens)
+            response.quota = QuotaInfo(**updated_quota)
+        except ValueError as qe:
+            print(f"[QUOTA] Warning: {qe}")
+
         return response
 
     except Exception as e:

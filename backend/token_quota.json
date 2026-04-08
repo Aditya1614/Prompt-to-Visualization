@@ -1,0 +1,13 @@
+{
+  "users": {
+    "aditya.candra@porto.co.id": {
+      "name": "Aditya Candra Gumilang",
+      "daily_limit": 200000
+    },
+    "analyst@example.com": {
+      "name": "Analyst User",
+      "daily_limit": 100000
+    }
+  },
+  "default_daily_limit": 100000
+}
