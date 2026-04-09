@@ -41,8 +41,16 @@ from models import (
     TableListResponse,
     TableInfo,
     QuotaInfo,
+    OrgUser,
+    QuotaSettingEntry,
+    UpdateUserRequest,
+    RemoveUserRequest,
 )
-from token_quota import get_quota_info, consume_tokens, is_registered
+from token_quota import (
+    get_quota_info, consume_tokens, is_registered,
+    is_admin, get_all_quota_settings, update_user_quota, remove_user_quota,
+)
+from lark_contacts import fetch_all_org_users
 
 # Load environment variables
 load_dotenv()
@@ -468,3 +476,59 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
+
+# ──────────────────────────────────────────────
+# Admin Endpoints (require admin role)
+# ──────────────────────────────────────────────
+
+def require_admin(user: dict) -> None:
+    """Raise 403 if user is not an admin."""
+    email = user.get("email", "")
+    if not is_admin(email):
+        raise HTTPException(
+            status_code=403,
+            detail="Access denied. Admin privileges required.",
+        )
+
+
+@app.get("/api/admin/org-users")
+async def admin_get_org_users(user: dict = Depends(get_current_user)):
+    """Fetch all users from the Lark organization."""
+    require_admin(user)
+    try:
+        users = await fetch_all_org_users()
+        return {"users": [OrgUser(**u) for u in users]}
+    except Exception as e:
+        print(f"[ADMIN] Org user fetch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch org users: {str(e)}")
+
+
+@app.get("/api/admin/quota-settings")
+async def admin_get_quota_settings(user: dict = Depends(get_current_user)):
+    """Get all registered users with their quota settings and usage."""
+    require_admin(user)
+    entries = get_all_quota_settings()
+    return {"users": [QuotaSettingEntry(**e) for e in entries]}
+
+
+@app.post("/api/admin/update-user")
+async def admin_update_user(
+    request: UpdateUserRequest, user: dict = Depends(get_current_user)
+):
+    """Add or update a user's quota settings."""
+    require_admin(user)
+    result = update_user_quota(request.email, request.name, request.daily_limit)
+    return {"status": "ok", "user": result}
+
+
+@app.post("/api/admin/remove-user")
+async def admin_remove_user(
+    request: RemoveUserRequest, user: dict = Depends(get_current_user)
+):
+    """Remove a user's access."""
+    require_admin(user)
+    removed = remove_user_quota(request.email)
+    if not removed:
+        raise HTTPException(status_code=404, detail=f"User {request.email} not found.")
+    return {"status": "ok", "removed": request.email}

@@ -54,6 +54,7 @@ class QuotaInfo(BaseModel):
     used_today: int = Field(0, description="Tokens used today")
     remaining: int = Field(0, description="Tokens remaining today")
     date: str = Field("", description="Current date (quota resets daily)")
+    is_admin: bool = Field(False, description="Whether the user is an admin")
 
 
 class VisualizeResponse(BaseModel):
@@ -65,3 +66,36 @@ class VisualizeResponse(BaseModel):
     insight: str = Field("", description="AI-generated insight about the data")
     token_usage: Optional[TokenUsage] = Field(None, description="Token usage statistics")
     quota: Optional[QuotaInfo] = Field(None, description="Updated quota info after request")
+
+
+# ── Admin Models ──────────────────────────────────────────────────
+
+class OrgUser(BaseModel):
+    """A user from the Lark organization."""
+    name: str = Field("", description="User's display name")
+    email: str = Field("", description="User's email")
+    avatar_url: str = Field("", description="Avatar image URL")
+    department: str = Field("", description="Department name or ID")
+    open_id: str = Field("", description="Lark open_id")
+
+
+class QuotaSettingEntry(BaseModel):
+    """A registered user's quota settings for the admin dashboard."""
+    email: str = Field("", description="User's email")
+    name: str = Field("", description="Display name")
+    daily_limit: int = Field(0, description="Daily token limit")
+    used_today: int = Field(0, description="Tokens used today")
+    remaining: int = Field(0, description="Tokens remaining today")
+    is_admin: bool = Field(False, description="Whether the user is an admin")
+
+
+class UpdateUserRequest(BaseModel):
+    """Request to add or update a user's quota."""
+    email: str = Field(..., description="User's email")
+    name: str = Field("", description="Display name")
+    daily_limit: int = Field(100_000, description="Daily token limit")
+
+
+class RemoveUserRequest(BaseModel):
+    """Request to remove a user's access."""
+    email: str = Field(..., description="User's email")

@@ -27,7 +27,21 @@ def _load_config() -> dict:
             return json.load(f)
     except (FileNotFoundError, json.JSONDecodeError) as e:
         print(f"[QUOTA] Failed to load config: {e}")
-        return {"users": {}, "default_daily_limit": 100_000}
+        return {"admins": [], "users": {}, "default_daily_limit": 100_000}
+
+
+def _save_config(config: dict) -> None:
+    """Write updated config back to token_quota.json."""
+    with open(QUOTA_FILE, "w", encoding="utf-8") as f:
+        json.dump(config, f, indent=2, ensure_ascii=False)
+    print("[QUOTA] Config saved to disk.")
+
+
+def is_admin(email: str) -> bool:
+    """Check if an email is in the admins list."""
+    config = _load_config()
+    admins = config.get("admins", [])
+    return email.lower() in {a.lower() for a in admins}
 
 
 def is_registered(email: str) -> bool:
@@ -74,10 +88,13 @@ def get_quota_info(email: str) -> dict:
             "daily_limit": int,
             "used_today": int,
             "remaining": int,
-            "date": str
+            "date": str,
+            "is_admin": bool,
         }
     """
     registered = is_registered(email)
+    admin = is_admin(email)
+
     if not registered:
         return {
             "registered": False,
@@ -86,6 +103,7 @@ def get_quota_info(email: str) -> dict:
             "used_today": 0,
             "remaining": 0,
             "date": _get_today(),
+            "is_admin": admin,
         }
 
     limit = get_daily_limit(email)
@@ -99,6 +117,7 @@ def get_quota_info(email: str) -> dict:
         "used_today": used,
         "remaining": remaining,
         "date": _get_today(),
+        "is_admin": admin,
     }
 
 
@@ -150,3 +169,96 @@ def check_quota(email: str) -> bool:
         return False
     info = get_quota_info(email)
     return info["remaining"] > 0
+
+
+# ── Admin Functions ──────────────────────────────────────────────────
+
+
+def get_all_quota_settings() -> list[dict]:
+    """
+    Return all registered users with their limits and today's usage.
+    Used by the admin dashboard.
+    """
+    config = _load_config()
+    users = config.get("users", {})
+    admins = {a.lower() for a in config.get("admins", [])}
+    result = []
+
+    for email, info in users.items():
+        used = get_usage(email)
+        limit = info.get("daily_limit", config.get("default_daily_limit", 100_000))
+        result.append({
+            "email": email,
+            "name": info.get("name", ""),
+            "daily_limit": limit,
+            "used_today": used,
+            "remaining": max(0, limit - used),
+            "is_admin": email.lower() in admins,
+        })
+
+    return result
+
+
+def update_user_quota(email: str, name: str, daily_limit: int) -> dict:
+    """
+    Add or update a user in the quota config.
+
+    Args:
+        email: User's email (key)
+        name: Display name
+        daily_limit: Daily token limit
+
+    Returns:
+        Updated user entry
+    """
+    config = _load_config()
+    users = config.setdefault("users", {})
+
+    # Case-insensitive: find existing key or use provided email
+    existing_key = None
+    for key in users:
+        if key.lower() == email.lower():
+            existing_key = key
+            break
+
+    target_key = existing_key or email
+    users[target_key] = {
+        "name": name,
+        "daily_limit": daily_limit,
+    }
+
+    _save_config(config)
+    return {"email": target_key, "name": name, "daily_limit": daily_limit}
+
+
+def remove_user_quota(email: str) -> bool:
+    """
+    Remove a user from the quota config.
+
+    Args:
+        email: User's email to remove
+
+    Returns:
+        True if removed, False if not found
+    """
+    config = _load_config()
+    users = config.get("users", {})
+
+    # Case-insensitive lookup
+    key_to_remove = None
+    for key in users:
+        if key.lower() == email.lower():
+            key_to_remove = key
+            break
+
+    if key_to_remove is None:
+        return False
+
+    del users[key_to_remove]
+
+    # Also remove from admins if present
+    admins = config.get("admins", [])
+    config["admins"] = [a for a in admins if a.lower() != email.lower()]
+
+    _save_config(config)
+    return True

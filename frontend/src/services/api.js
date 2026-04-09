@@ -81,7 +81,7 @@ export async function healthCheck() {
 
 /**
  * Fetch the current user's token quota info.
- * @returns {Promise<Object>} { registered, email, daily_limit, used_today, remaining, date }
+ * @returns {Promise<Object>} { registered, email, daily_limit, used_today, remaining, date, is_admin }
  */
 export async function fetchQuota() {
     const response = await fetch(`${API_BASE}/api/quota`, {
@@ -89,3 +89,56 @@ export async function fetchQuota() {
     });
     return handleResponse(response);
 }
+
+// ── Admin API ────────────────────────────────────
+
+/**
+ * Fetch all users from the Lark organization.
+ * @returns {Promise<Object>} { users: Array<OrgUser> }
+ */
+export async function fetchOrgUsers() {
+    const response = await fetch(`${API_BASE}/api/admin/org-users`, {
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}
+
+/**
+ * Fetch all registered users with quota settings.
+ * @returns {Promise<Object>} { users: Array<QuotaSettingEntry> }
+ */
+export async function fetchQuotaSettings() {
+    const response = await fetch(`${API_BASE}/api/admin/quota-settings`, {
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}
+
+/**
+ * Add or update a user's quota settings.
+ * @param {string} email
+ * @param {string} name
+ * @param {number} dailyLimit
+ */
+export async function updateUserQuota(email, name, dailyLimit) {
+    const response = await fetch(`${API_BASE}/api/admin/update-user`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email, name, daily_limit: dailyLimit }),
+    });
+    return handleResponse(response);
+}
+
+/**
+ * Remove a user's access.
+ * @param {string} email
+ */
+export async function removeUserQuota(email) {
+    const response = await fetch(`${API_BASE}/api/admin/remove-user`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email }),
+    });
+    return handleResponse(response);
+}
+

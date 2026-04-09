@@ -21,12 +21,16 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     // Check if there's a token in the URL hash (from OAuth callback redirect)
-    const hash = window.location.hash;
-    if (hash.startsWith("#token=")) {
-      const token = hash.substring(7); // Remove "#token="
+    // The callback redirects to FRONTEND_URL#token=JWT
+    // With HashRouter, the hash is used for routing, so we check window.location.href directly
+    const fullUrl = window.location.href;
+    const tokenMatch = fullUrl.match(/[#&?]token=([^&#]+)/);
+    if (tokenMatch) {
+      const token = tokenMatch[1];
       localStorage.setItem(TOKEN_KEY, token);
-      // Clean the URL hash
-      window.history.replaceState(null, "", window.location.pathname);
+      // Clean the URL — redirect to root
+      window.location.replace(window.location.origin + window.location.pathname);
+      return; // Don't call checkAuth yet, page will reload
     }
 
     checkAuth();
