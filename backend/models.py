@@ -99,3 +99,9 @@ class UpdateUserRequest(BaseModel):
 class RemoveUserRequest(BaseModel):
     """Request to remove a user's access."""
     email: str = Field(..., description="User's email")
+
+
+class SetAdminRequest(BaseModel):
+    """Request to change a user's admin status."""
+    email: str = Field(..., description="User's email")
+    is_admin: bool = Field(..., description="Whether the user should be an admin")

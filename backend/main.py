@@ -45,10 +45,12 @@ from models import (
     QuotaSettingEntry,
     UpdateUserRequest,
     RemoveUserRequest,
+    SetAdminRequest,
 )
 from token_quota import (
     get_quota_info, consume_tokens, is_registered,
     is_admin, get_all_quota_settings, update_user_quota, remove_user_quota,
+    set_admin_role
 )
 from lark_contacts import fetch_all_org_users
 
@@ -532,3 +534,17 @@ async def admin_remove_user(
     if not removed:
         raise HTTPException(status_code=404, detail=f"User {request.email} not found.")
     return {"status": "ok", "removed": request.email}
+
+@app.post("/api/admin/set-admin")
+async def admin_set_admin(
+    request: SetAdminRequest, user: dict = Depends(get_current_user)
+):
+    """Update a user's admin role."""
+    require_admin(user)
+    
+    # Prevent self-demotion
+    if not request.is_admin and request.email.lower() == user.get("email", "").lower():
+        raise HTTPException(status_code=400, detail="You cannot remove your own admin role.")
+        
+    set_admin_role(request.email, request.is_admin)
+    return {"status": "ok", "email": request.email, "is_admin": request.is_admin}

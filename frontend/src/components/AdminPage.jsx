@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, Navigate } from "react-router-dom";
-import { fetchOrgUsers, fetchQuotaSettings, updateUserQuota, removeUserQuota, fetchQuota } from "../services/api";
+import { fetchOrgUsers, fetchQuotaSettings, updateUserQuota, removeUserQuota, fetchQuota, setAdminRole } from "../services/api";
 import "./AdminPage.css";
 
 export default function AdminPage() {
@@ -19,6 +19,9 @@ export default function AdminPage() {
     // Edit state
     const [editingEmail, setEditingEmail] = useState(null);
     const [editLimit, setEditLimit] = useState("");
+    
+    // Dropdown state
+    const [openRoleDropdown, setOpenRoleDropdown] = useState(null);
 
     // Check admin status
     useEffect(() => {
@@ -103,6 +106,18 @@ export default function AdminPage() {
         }
     };
 
+    const handleSetAdmin = async (email, isAdminStatus) => {
+        const action = isAdminStatus ? "promote to Admin" : "revoke Admin rights from";
+        if (!window.confirm(`Are you sure you want to ${action} ${email}?`)) return;
+        try {
+            await setAdminRole(email, isAdminStatus);
+            loadQuotaSettings();
+        } catch (err) {
+            console.error(err);
+            alert(`Failed to update admin role. ${err.message || ''}`);
+        }
+    };
+
     if (authLoading || adminLoading) {
         return (
             <div className="page-bg">
@@ -128,8 +143,10 @@ export default function AdminPage() {
     const totalTokens = quotaUsers.reduce((sum, u) => sum + u.used_today, 0);
 
     return (
-        <div className="admin-page page-bg">
-            <header className="admin-header">
+        <div className="page-bg">
+            <div className="card-container" style={{ flexDirection: 'column', maxWidth: '1100px' }}>
+                <div className="admin-page">
+                    <header className="admin-header">
                 <div>
                     <h1 className="admin-title">Organization Access Control</h1>
                     <p className="admin-subtitle">Manage token quotas and AI Visualization access</p>
@@ -187,8 +204,36 @@ export default function AdminPage() {
                                     <tr key={u.email}>
                                         <td className="font-medium">{u.name}</td>
                                         <td className="text-muted">{u.email}</td>
-                                        <td>
-                                            {u.is_admin ? <span className="role-badge admin">Admin</span> : <span className="role-badge user">User</span>}
+                                        <td style={{position: 'relative'}}>
+                                            <div 
+                                                className={`role-badge ${u.is_admin ? "admin" : "user"} ${u.email !== user?.email ? "clickable" : ""}`}
+                                                onClick={() => {
+                                                    if (u.email !== user?.email) {
+                                                        setOpenRoleDropdown(openRoleDropdown === u.email ? null : u.email);
+                                                    }
+                                                }}
+                                                title={u.email !== user?.email ? "Click to change role" : ""}
+                                            >
+                                                {u.is_admin ? "Admin" : "User"}
+                                                {u.email !== user?.email && <span className="dropdown-arrow ml-2">▾</span>}
+                                            </div>
+                                            
+                                            {openRoleDropdown === u.email && (
+                                                <div className="role-dropdown">
+                                                    <div 
+                                                        className={`role-dropdown-item ${u.is_admin ? "active" : ""}`} 
+                                                        onClick={() => { handleSetAdmin(u.email, true); setOpenRoleDropdown(null); }}
+                                                    >
+                                                        Admin
+                                                    </div>
+                                                    <div 
+                                                        className={`role-dropdown-item ${!u.is_admin ? "active" : ""}`} 
+                                                        onClick={() => { handleSetAdmin(u.email, false); setOpenRoleDropdown(null); }}
+                                                    >
+                                                        User
+                                                    </div>
+                                                </div>
+                                            )}
                                         </td>
                                         <td>
                                             {editingEmail === u.email ? (
@@ -219,9 +264,11 @@ export default function AdminPage() {
                                             </div>
                                         </td>
                                         <td>
-                                            {!u.is_admin && (
-                                                <button className="text-btn danger" onClick={() => handleRemoveAccess(u.email)}>Revoke</button>
-                                            )}
+                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                {!u.is_admin && (
+                                                    <button className="text-btn danger" onClick={() => handleRemoveAccess(u.email)}>Remove Access</button>
+                                                )}
+                                            </div>
                                         </td>
                                     </tr>
                                 ))}
@@ -305,5 +352,7 @@ export default function AdminPage() {
                 </div>
             </div>
         </div>
+    </div>
+</div>
     );
 }

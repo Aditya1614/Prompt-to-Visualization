@@ -142,3 +142,17 @@ export async function removeUserQuota(email) {
     return handleResponse(response);
 }
 
+/**
+ * Change a user's admin role.
+ * @param {string} email
+ * @param {boolean} isAdmin
+ */
+export async function setAdminRole(email, isAdmin) {
+    const response = await fetch(`${API_BASE}/api/admin/set-admin`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ email, is_admin: isAdmin }),
+    });
+    return handleResponse(response);
+}
+

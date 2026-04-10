@@ -1,8 +1,7 @@
 .admin-page {
-    padding: 2.5rem;
+    padding: 2rem 2.5rem;
     overflow-y: auto;
-    height: 100vh;
-    background-color: var(--bg-page);
+    flex: 1;
     color: var(--text-primary);
 }
 
@@ -10,13 +9,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
     padding-bottom: 1rem;
     border-bottom: 1px solid var(--border-light);
 }
 
 .admin-title {
-    font-size: 1.75rem;
+    font-size: 1.4rem;
     font-weight: 700;
     color: var(--text-primary);
     margin: 0;
@@ -24,7 +23,7 @@
 }
 
 .admin-subtitle {
-    font-size: 1rem;
+    font-size: 0.9rem;
     color: var(--text-muted);
     margin: 0.25rem 0 0 0;
 }
@@ -71,14 +70,14 @@
     display: grid;
     grid-template-columns: repeat(3, 1fr);
     gap: 1.5rem;
-    margin-bottom: 2.5rem;
+    margin-bottom: 1.5rem;
 }
 
 .stat-card {
     background-color: var(--bg-card);
     border: 1px solid var(--border-light);
     border-radius: var(--radius-lg);
-    padding: 1.5rem;
+    padding: 1.25rem;
     box-shadow: var(--shadow-card);
     transition: transform 0.2s;
 }
@@ -94,9 +93,9 @@
 }
 
 .stat-label {
-    font-size: 0.9rem;
+    font-size: 0.8rem;
     color: var(--text-muted);
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     font-weight: 500;
     text-transform: uppercase;
     letter-spacing: 0.05em;
@@ -107,7 +106,7 @@
 }
 
 .stat-value {
-    font-size: 2.25rem;
+    font-size: 1.6rem;
     font-weight: 700;
     line-height: 1;
 }
@@ -115,7 +114,7 @@
 .admin-grid {
     display: flex;
     flex-direction: column;
-    gap: 2.5rem;
+    gap: 1.5rem;
 }
 
 .admin-panel {
@@ -130,13 +129,13 @@
     display: flex;
     justify-content: space-between;
     align-items: center;
-    padding: 1.25rem 1.75rem;
+    padding: 1rem 1.5rem;
     background-color: var(--bg-page);
     border-bottom: 1px solid var(--border-light);
 }
 
 .panel-header h2 {
-    font-size: 1.15rem;
+    font-size: 1.05rem;
     font-weight: 600;
     color: var(--text-primary);
     margin: 0;
@@ -212,9 +211,9 @@
 
 .admin-table th, 
 .admin-table td {
-    padding: 1rem 1.75rem;
+    padding: 0.75rem 1rem;
     border-bottom: 1px solid var(--border-light);
-    font-size: 0.95rem;
+    font-size: 0.85rem;
     vertical-align: middle;
 }
 
@@ -262,6 +261,54 @@
     font-weight: 600;
     text-transform: uppercase;
     letter-spacing: 0.05em;
+    user-select: none;
+}
+
+.role-badge.clickable {
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.role-badge.clickable:hover {
+    filter: brightness(0.95);
+}
+
+.dropdown-arrow {
+    margin-left: 0.35rem;
+    font-size: 0.7rem;
+    opacity: 0.7;
+}
+
+/* Floating Dropdown for Role */
+.role-dropdown {
+    position: absolute;
+    top: calc(100% + 5px);
+    left: 0;
+    background-color: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-card);
+    z-index: 50;
+    min-width: 120px;
+    padding: 0.35rem 0;
+}
+
+.role-dropdown-item {
+    padding: 0.5rem 1rem;
+    cursor: pointer;
+    font-size: 0.85rem;
+    font-weight: 500;
+    color: var(--text-primary);
+    transition: var(--transition);
+}
+
+.role-dropdown-item:hover {
+    background-color: var(--bg-page);
+}
+
+.role-dropdown-item.active {
+    color: var(--accent-from);
+    background-color: var(--blue-50);
 }
 
 .role-badge.admin {
@@ -372,6 +419,14 @@
 
 .text-btn.danger:hover {
     background-color: var(--error-bg);
+}
+
+.text-btn.primary {
+    color: var(--accent-from);
+}
+
+.text-btn.primary:hover {
+    background-color: var(--blue-50);
 }
 
 .grant-btn {

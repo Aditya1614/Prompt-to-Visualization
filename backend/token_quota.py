@@ -262,3 +262,23 @@ def remove_user_quota(email: str) -> bool:
 
     _save_config(config)
     return True
+
+
+def set_admin_role(email: str, is_admin_role: bool) -> bool:
+    """
+    Update the admin status of a registered user.
+    """
+    config = _load_config()
+    admins = config.get("admins", [])
+
+    if is_admin_role:
+        # Add if not present
+        if not any(a.lower() == email.lower() for a in admins):
+            admins.append(email)
+    else:
+        # Remove if present
+        admins = [a for a in admins if a.lower() != email.lower()]
+
+    config["admins"] = admins
+    _save_config(config)
+    return True
