@@ -72,7 +72,7 @@ async def _fetch_department_children(token: str, parent_id: str = "0") -> list[d
     while True:
         params = {
             "parent_department_id": parent_id,
-            "department_id_type": "department_id",
+            "department_id_type": "open_department_id" if parent_id.startswith("od-") else "department_id",
             "page_size": 50,
         }
         if page_token:
@@ -111,7 +111,7 @@ async def _fetch_users_in_department(token: str, dept_id: str) -> list[dict]:
     while True:
         params = {
             "department_id": dept_id,
-            "department_id_type": "department_id",
+            "department_id_type": "open_department_id" if dept_id.startswith("od-") else "department_id",
             "page_size": 50,
         }
         if page_token:
@@ -142,21 +142,24 @@ async def _fetch_users_in_department(token: str, dept_id: str) -> list[dict]:
     return users
 
 
-async def _collect_all_department_ids(token: str, parent_id: str = "0") -> list[str]:
+async def _collect_all_department_ids(token: str, parent_id: str) -> list[str]:
     """Recursively collect all department IDs starting from root."""
     dept_ids = [parent_id]
 
     try:
         children = await _fetch_department_children(token, parent_id)
         for child in children:
-            child_id = child.get("department_id", "")
+            child_id = child.get("open_department_id", "") or child.get("department_id", "")
             if child_id:
                 sub_ids = await _collect_all_department_ids(token, child_id)
                 dept_ids.extend(sub_ids)
     except Exception as e:
         print(f"[LARK_CONTACTS] Error collecting children for {parent_id}: {e}")
-        # Re-raise so the user sees the error
-        raise e
+        # If it's a permission error, we just return what we have (don't crash the whole sync)
+        if "40004" in str(e):
+            print(f"[LARK_CONTACTS] Bypassing department fetch for {parent_id} due to 40004 permission error...")
+        else:
+            raise e
 
     return dept_ids
 
@@ -171,9 +174,12 @@ async def fetch_all_org_users() -> list[dict]:
     """
     token = await get_tenant_access_token()
 
+    # Start recursion from the specific department ID you provided
+    root_dept_id = "od-f1f9a48834fac7e5218e727d21ba1788"
+
     # Collect all department IDs recursively
-    print("[LARK_CONTACTS] Collecting department tree...")
-    dept_ids = await _collect_all_department_ids(token)
+    print(f"[LARK_CONTACTS] Collecting department tree starting from {root_dept_id}...")
+    dept_ids = await _collect_all_department_ids(token, root_dept_id)
     print(f"[LARK_CONTACTS] Found {len(dept_ids)} departments")
 
     # Fetch users from each department
