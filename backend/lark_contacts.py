@@ -74,6 +74,7 @@ async def _fetch_department_children(token: str, parent_id: str = "0") -> list[d
             "parent_department_id": parent_id,
             "department_id_type": "open_department_id" if parent_id.startswith("od-") else "department_id",
             "page_size": 50,
+            "fetch_child": True,
         }
         if page_token:
             params["page_token"] = page_token
