@@ -105,3 +105,17 @@ class SetAdminRequest(BaseModel):
     """Request to change a user's admin status."""
     email: str = Field(..., description="User's email")
     is_admin: bool = Field(..., description="Whether the user should be an admin")
+
+
+class DatamartInfoAdmin(BaseModel):
+    """Admin view of a datamart's access control."""
+    dataset: str = Field(..., description="BigQuery dataset name")
+    table: str = Field(..., description="BigQuery table name")
+    allowed_users: list[str] = Field(default_factory=list, description="List of emails allowed to access")
+
+
+class UpdateDatamartAccessRequest(BaseModel):
+    """Request to update users allowed for a datamart."""
+    dataset: str = Field(..., description="BigQuery dataset name")
+    table: str = Field(..., description="BigQuery table name")
+    allowed_users: list[str] = Field(..., description="List of emails allowed to access")

@@ -156,3 +156,29 @@ export async function setAdminRole(email, isAdmin) {
     return handleResponse(response);
 }
 
+// ── Datamart Admin API ──────────────────────────────────────────
+
+export async function fetchAdminDatamarts() {
+    const response = await fetch(`${API_BASE}/api/admin/datamarts`, {
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}
+
+export async function syncAdminDatamarts() {
+    const response = await fetch(`${API_BASE}/api/admin/sync-datamarts`, {
+        method: "POST",
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}
+
+export async function updateDatamartAccess(dataset, table, allowedUsers) {
+    const response = await fetch(`${API_BASE}/api/admin/update-datamart-access`, {
+        method: "POST",
+        headers: authHeaders({ "Content-Type": "application/json" }),
+        body: JSON.stringify({ dataset, table, allowed_users: allowedUsers }),
+    });
+    return handleResponse(response);
+}
+

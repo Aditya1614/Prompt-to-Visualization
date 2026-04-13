@@ -1,7 +1,10 @@
 import { useState, useEffect } from "react";
 import { useAuth } from "../contexts/AuthContext";
 import { Link, Navigate } from "react-router-dom";
-import { fetchOrgUsers, fetchQuotaSettings, updateUserQuota, removeUserQuota, fetchQuota, setAdminRole } from "../services/api";
+import { 
+    fetchOrgUsers, fetchQuotaSettings, updateUserQuota, removeUserQuota, fetchQuota, setAdminRole,
+    fetchAdminDatamarts, syncAdminDatamarts, updateDatamartAccess
+} from "../services/api";
 import "./AdminPage.css";
 
 export default function AdminPage() {
@@ -14,7 +17,11 @@ export default function AdminPage() {
     
     const [orgLoading, setOrgLoading] = useState(false);
     const [quotaLoading, setQuotaLoading] = useState(false);
+    const [datamartsLoading, setDatamartsLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    
+    // Datamart state
+    const [datamarts, setDatamarts] = useState([]);
 
     // Edit state
     const [editingEmail, setEditingEmail] = useState(null);
@@ -44,8 +51,43 @@ export default function AdminPage() {
     useEffect(() => {
         if (isAdmin) {
             loadQuotaSettings();
+            loadDatamarts();
         }
     }, [isAdmin]);
+
+    const loadDatamarts = async () => {
+        setDatamartsLoading(true);
+        try {
+            const data = await fetchAdminDatamarts();
+            setDatamarts(data.datamarts || []);
+        } catch (err) {
+            console.error("Failed to load datamarts", err);
+        } finally {
+            setDatamartsLoading(false);
+        }
+    };
+
+    const handleSyncDatamarts = async () => {
+        setDatamartsLoading(true);
+        try {
+            await syncAdminDatamarts();
+            loadDatamarts();
+        } catch (err) {
+            alert(`Failed to sync datamarts: ${err.message}`);
+            setDatamartsLoading(false);
+        }
+    };
+    
+    const handleUpdateDatamartAccess = async (dataset, table, selectElement) => {
+        const options = Array.from(selectElement.selectedOptions);
+        const selectedEmails = options.map(opt => opt.value);
+        try {
+            await updateDatamartAccess(dataset, table, selectedEmails);
+            loadDatamarts();
+        } catch (err) {
+            alert(`Failed to update access: ${err.message}`);
+        }
+    };
 
     const loadQuotaSettings = async () => {
         setQuotaLoading(true);
@@ -345,6 +387,54 @@ export default function AdminPage() {
                                     {filteredOrgUsers.length === 0 && (
                                         <tr><td colSpan="6" className="empty-table">No matching users found</td></tr>
                                     )}
+                                </tbody>
+                            </table>
+                        </div>
+                    )}
+                </div>
+
+                {/* ─── Datamart Access Control Panel ─── */}
+                <div className="admin-panel full-width">
+                    <div className="panel-header">
+                        <h2>Datamart Access Control</h2>
+                        <button className="panel-btn primary" onClick={handleSyncDatamarts} disabled={datamartsLoading}>
+                            {datamartsLoading ? "Syncing..." : "Sync from BigQuery"}
+                        </button>
+                    </div>
+                    {datamarts.length === 0 ? (
+                         <div className="empty-org-state">
+                             <p>No datamarts synced yet. Click "Sync from BigQuery" to fetch all tables.</p>
+                         </div>
+                    ) : (
+                        <div className="table-container">
+                            <table className="admin-table">
+                                <thead>
+                                    <tr>
+                                        <th>Dataset</th>
+                                        <th>Table Name</th>
+                                        <th>User Access (Multiselect)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {datamarts.map((dm) => (
+                                        <tr key={`${dm.dataset}.${dm.table}`}>
+                                            <td className="font-medium">{dm.dataset}</td>
+                                            <td>{dm.table}</td>
+                                            <td>
+                                                <select 
+                                                    multiple
+                                                    className="datamart-select"
+                                                    value={dm.allowed_users}
+                                                    onChange={(e) => handleUpdateDatamartAccess(dm.dataset, dm.table, e.target)}
+                                                >
+                                                    {quotaUsers.map(u => (
+                                                        <option key={u.email} value={u.email}>{u.name} ({u.email}) {!u.is_admin ? "" : "[Admin]"}</option>
+                                                    ))}
+                                                </select>
+                                                <div className="text-sm text-muted mt-1">Hint: Use Ctrl/Cmd+Click to select multiple. Admins always have access.</div>
+                                            </td>
+                                        </tr>
+                                    ))}
                                 </tbody>
                             </table>
                         </div>

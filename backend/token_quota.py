@@ -15,8 +15,7 @@ from threading import Lock
 # Path to the quota config file (same directory as this module)
 QUOTA_FILE = Path(__file__).parent / "token_quota.json"
 
-# In-memory usage tracker: { "email": { "date": "2026-04-08", "used": 12345 } }
-_usage: dict[str, dict] = {}
+# Lock to prevent race conditions when reading/writing config file
 _lock = Lock()
 
 
@@ -69,12 +68,25 @@ def _get_today() -> str:
 def get_usage(email: str) -> int:
     """Get today's token usage for a user. Resets if date has changed."""
     with _lock:
-        key = email.lower()
-        today = _get_today()
-        entry = _usage.get(key, {})
-        if entry.get("date") != today:
+        config = _load_config()
+        users = config.get("users", {})
+        
+        target_key = None
+        for key in users:
+            if key.lower() == email.lower():
+                target_key = key
+                break
+                
+        if not target_key:
             return 0
-        return entry.get("used", 0)
+            
+        entry = users[target_key]
+        today = _get_today()
+        
+        if entry.get("usage_date") != today:
+            return 0
+            
+        return entry.get("used_today", 0)
 
 
 def get_quota_info(email: str) -> dict:
@@ -139,16 +151,29 @@ def consume_tokens(email: str, amount: int) -> dict:
         raise ValueError(f"User {email} is not registered for token quota.")
 
     with _lock:
-        key = email.lower()
+        config = _load_config()
+        users = config.get("users", {})
+        
+        target_key = None
+        for key in users:
+            if key.lower() == email.lower():
+                target_key = key
+                break
+                
+        if not target_key:
+            raise ValueError(f"User {email} is not registered for token quota.")
+
+        entry = users[target_key]
         today = _get_today()
-        entry = _usage.get(key, {})
 
         # Reset if new day
-        if entry.get("date") != today:
-            entry = {"date": today, "used": 0}
+        if entry.get("usage_date") != today:
+            entry["usage_date"] = today
+            entry["used_today"] = 0
 
-        limit = get_daily_limit(email)
-        current_used = entry.get("used", 0)
+        # We can read limit from entry directly, fallback to default_daily_limit
+        limit = entry.get("daily_limit", config.get("default_daily_limit", 100_000))
+        current_used = entry.get("used_today", 0)
 
         if current_used >= limit:
             raise ValueError(
@@ -157,8 +182,9 @@ def consume_tokens(email: str, amount: int) -> dict:
             )
 
         # Deduct tokens (allow going slightly over limit on the last request)
-        entry["used"] = current_used + amount
-        _usage[key] = entry
+        entry["used_today"] = current_used + amount
+        
+        _save_config(config)
 
     return get_quota_info(email)
 
@@ -222,10 +248,19 @@ def update_user_quota(email: str, name: str, daily_limit: int) -> dict:
             break
 
     target_key = existing_key or email
-    users[target_key] = {
-        "name": name,
-        "daily_limit": daily_limit,
-    }
+    
+    if target_key in users:
+        # Merge update so we do not overwrite usage data
+        users[target_key]["name"] = name
+        users[target_key]["daily_limit"] = daily_limit
+    else:
+        # Create new entry
+        users[target_key] = {
+            "name": name,
+            "daily_limit": daily_limit,
+            "used_today": 0,
+            "usage_date": _get_today()
+        }
 
     _save_config(config)
     return {"email": target_key, "name": name, "daily_limit": daily_limit}
@@ -282,3 +317,68 @@ def set_admin_role(email: str, is_admin_role: bool) -> bool:
     config["admins"] = admins
     _save_config(config)
     return True
+
+
+# ── Datamart Access Control ──────────────────────────────────────────
+
+def get_all_datamarts() -> dict:
+    """Return all datamarts and their access list."""
+    config = _load_config()
+    return config.get("datamarts", {})
+
+
+def sync_datamarts(available_tables: list[dict]) -> dict:
+    """
+    Sync available tables from BQ to config.
+    available_tables: [{"dataset": "...", "table": "..."}]
+    """
+    config = _load_config()
+    datamarts = config.setdefault("datamarts", {})
+    
+    with _lock:
+        for t in available_tables:
+            dataset = t.get("dataset")
+            table = t.get("table")
+            if not dataset or not table:
+                continue
+            key = f"{dataset}.{table}"
+            if key not in datamarts:
+                datamarts[key] = []  # Default: empty (admins only)
+                
+        _save_config(config)
+        
+    return datamarts
+
+
+def update_datamart_access(dataset: str, table: str, emails: list[str]) -> dict:
+    """Update user access list for a specific datamart."""
+    config = _load_config()
+    key = f"{dataset}.{table}"
+    
+    with _lock:
+        datamarts = config.setdefault("datamarts", {})
+        # Deduplicate and lowercase
+        datamarts[key] = list({e.lower() for e in emails})
+        _save_config(config)
+        
+    return datamarts
+
+
+def has_datamart_access(email: str, dataset: str, table: str) -> bool:
+    """Check if a user has access to a specific datamart."""
+    config = _load_config()
+    
+    # Admins always have access
+    admins = config.get("admins", [])
+    if email.lower() in {a.lower() for a in admins}:
+        return True
+        
+    datamarts = config.get("datamarts", {})
+    key = f"{dataset}.{table}"
+    
+    if key not in datamarts:
+        return False
+        
+    allowed_users = datamarts[key]
+    return email.lower() in {u.lower() for u in allowed_users}
+

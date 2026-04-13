@@ -46,11 +46,14 @@ from models import (
     UpdateUserRequest,
     RemoveUserRequest,
     SetAdminRequest,
+    DatamartInfoAdmin,
+    UpdateDatamartAccessRequest,
 )
 from token_quota import (
     get_quota_info, consume_tokens, is_registered,
     is_admin, get_all_quota_settings, update_user_quota, remove_user_quota,
-    set_admin_role
+    set_admin_role, get_all_datamarts, sync_datamarts, update_datamart_access, 
+    has_datamart_access
 )
 from lark_contacts import fetch_all_org_users
 
@@ -365,7 +368,13 @@ async def list_tables(dataset: str = "", user: dict = Depends(get_current_user))
         raise HTTPException(status_code=400, detail=f"Invalid dataset. Allowed: {ALLOWED_DATASETS}")
     try:
         tables_data = bq.list_tables(dataset)
-        tables = [TableInfo(name=t["name"]) for t in tables_data]
+        email = user.get("email", "")
+        # Filter tables by ACL
+        tables = [
+            TableInfo(name=t["name"]) 
+            for t in tables_data 
+            if has_datamart_access(email, dataset, t["name"])
+        ]
         return TableListResponse(dataset=dataset, tables=tables)
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Failed to list tables: {str(e)}")
@@ -427,6 +436,11 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
         # This way the agent treats it identically to JSON paste mode
         table_name = request.table_name
         dataset = request.dataset or ALLOWED_DATASETS[0]
+        
+        # Enforce ACL
+        if not has_datamart_access(email, dataset, table_name):
+            raise HTTPException(status_code=403, detail=f"You do not have access to datamart {dataset}.{table_name}")
+
         # Use a UUID so concurrent users requesting the same table don't share/overwrite data
         data_id = f"bq_{dataset}_{table_name}_{uuid.uuid4().hex[:8]}"
 
@@ -548,3 +562,48 @@ async def admin_set_admin(
         
     set_admin_role(request.email, request.is_admin)
     return {"status": "ok", "email": request.email, "is_admin": request.is_admin}
+
+
+# ── Datamart ACL Endpoints ──────────────────────────────────────────
+
+@app.get("/api/admin/datamarts")
+async def admin_get_datamarts(user: dict = Depends(get_current_user)):
+    """Fetch all configured datamarts and their access list."""
+    require_admin(user)
+    datamarts = get_all_datamarts()
+    
+    # Format into a list of DatamartInfoAdmin
+    results = []
+    for key, emails in datamarts.items():
+        if "." in key:
+            ds, tbl = key.split(".", 1)
+            results.append(DatamartInfoAdmin(dataset=ds, table=tbl, allowed_users=emails))
+            
+    return {"datamarts": results}
+
+
+@app.post("/api/admin/sync-datamarts")
+async def admin_sync_datamarts(user: dict = Depends(get_current_user)):
+    """Sync list of tables from BigQuery datasets and append to config."""
+    require_admin(user)
+    available = []
+    for dataset in ALLOWED_DATASETS:
+        try:
+            tables = bq.list_tables(dataset)
+            for t in tables:
+                available.append({"dataset": dataset, "table": t["name"]})
+        except Exception as e:
+            print(f"[BQ SYNC ERROR] Dataset {dataset}: {e}")
+            
+    updated = sync_datamarts(available)
+    return {"status": "ok", "synced_count": len(available), "total_configured": len(updated)}
+
+
+@app.post("/api/admin/update-datamart-access")
+async def admin_update_datamart_access(
+    request: UpdateDatamartAccessRequest, user: dict = Depends(get_current_user)
+):
+    """Update user access list for a specific datamart."""
+    require_admin(user)
+    updated = update_datamart_access(request.dataset, request.table, request.allowed_users)
+    return {"status": "ok", "dataset": request.dataset, "table": request.table, "allowed_users": request.allowed_users}
