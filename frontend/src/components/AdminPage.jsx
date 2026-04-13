@@ -20,6 +20,22 @@ const RefreshIcon = () => (
     <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M3 21v-5h5"/></svg>
 );
 
+const TrashIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2M10 11v6M14 11v6"/></svg>
+);
+
+const SettingsIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+);
+
+const CloseIcon = () => (
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+);
+
+const SearchIcon = () => (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
+);
+
 // --- Sub-Components ---
 
 const UserItem = ({ user, type, onGrant, onRemove, onSetAdmin, onEditLimit, isSelf }) => {
@@ -104,6 +120,94 @@ const UserItem = ({ user, type, onGrant, onRemove, onSetAdmin, onEditLimit, isSe
     );
 };
 
+// --- Datamart Modals ---
+
+const AddDeptModal = ({ isOpen, onClose, departments, onAdd }) => {
+    const [selectedDepts, setSelectedDepts] = useState([]);
+    const [search, setSearch] = useState("");
+
+    if (!isOpen) return null;
+
+    const filtered = departments.filter(d => d.toLowerCase().includes(search.toLowerCase()));
+
+    const toggle = (dept) => {
+        if (selectedDepts.includes(dept)) setSelectedDepts(selectedDepts.filter(d => d !== dept));
+        else setSelectedDepts([...selectedDepts, dept]);
+    };
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <h2>Add Department Access</h2>
+                    <button className="btn-icon" onClick={onClose}><CloseIcon /></button>
+                </div>
+                <div className="modal-body">
+                    <div className="search-field" style={{ marginBottom: '1rem' }}>
+                        <input className="search-input" placeholder="Search departments..." value={search} onChange={e => setSearch(e.target.value)} />
+                    </div>
+                    {filtered.map(dept => (
+                        <label key={dept} className="list-item-checkbox">
+                            <input type="checkbox" checked={selectedDepts.includes(dept)} onChange={() => toggle(dept)} />
+                            <span>{dept}</span>
+                        </label>
+                    ))}
+                </div>
+                <div className="modal-footer">
+                    <button className="btn-modal-primary" onClick={() => { onAdd(selectedDepts); onClose(); }}>Add Selected Departments</button>
+                    <button className="btn-modal-secondary" onClick={onClose}>Cancel</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+const AddUserModal = ({ isOpen, onClose, orgUsers, onAdd, deptName }) => {
+    const [search, setSearch] = useState("");
+    if (!isOpen) return null;
+
+    const filtered = orgUsers.filter(u => 
+        (u.name?.toLowerCase().includes(search.toLowerCase()) || u.email?.toLowerCase().includes(search.toLowerCase()))
+    );
+
+    return (
+        <div className="modal-overlay">
+            <div className="modal-content">
+                <div className="modal-header">
+                    <div>
+                        <h2>Add Users to {deptName}</h2>
+                        <p className="text-sm text-muted">Grant access individually</p>
+                    </div>
+                    <button className="btn-icon" onClick={onClose}><CloseIcon /></button>
+                </div>
+                <div className="modal-body">
+                    <div className="search-field" style={{ marginBottom: '1rem' }}>
+                        <input className="search-input" placeholder="Search organization users..." value={search} onChange={e => setSearch(e.target.value)} />
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                        {filtered.map(u => (
+                            <div key={u.email} className="user-access-item" style={{ padding: '0.5rem 0' }}>
+                                <div className="user-access-info">
+                                    <img src={u.avatar_url || ""} alt="" className="user-access-avatar" style={{ background: '#f1f5f9' }} />
+                                    <div className="user-access-details">
+                                        <h5>{u.name}</h5>
+                                        <p>{u.email}</p>
+                                    </div>
+                                </div>
+                                <button className="btn-grant" onClick={() => onAdd(u.email)}>Grant Access +</button>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+                <div className="modal-footer">
+                    <button className="btn-modal-primary" onClick={onClose}>Done</button>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+
 export default function AdminPage() {
     const { user, loading: authLoading } = useAuth();
     const [isAdmin, setIsAdmin] = useState(false);
@@ -115,15 +219,23 @@ export default function AdminPage() {
     const [orgLoading, setOrgLoading] = useState(false);
     const [quotaLoading, setQuotaLoading] = useState(false);
     const [searchQuery, setSearchQuery] = useState("");
+    const [dmSearchQuery, setDmSearchQuery] = useState("");
 
     // Accordion states
     const [regOpen, setRegOpen] = useState(true);
     const [discOpen, setDiscOpen] = useState(true);
     const [openDepts, setOpenDepts] = useState({});
+    const [openDmDepts, setOpenDmDepts] = useState({});
 
     // Datamart state
     const [datamarts, setDatamarts] = useState([]);
     const [datamartsLoading, setDatamartsLoading] = useState(false);
+    
+    // Modal states
+    const [showDeptModal, setShowDeptModal] = useState(false);
+    const [showUserModal, setShowUserModal] = useState(false);
+    const [activeDm, setActiveDm] = useState(null); // { dataset, table, allowed_users }
+    const [activeDept, setActiveDept] = useState(null); // string
 
     // Initial load
     useEffect(() => {
@@ -223,6 +335,60 @@ export default function AdminPage() {
         } catch (err) { alert("Limit update failed"); }
     };
 
+    // --- Datamart Logic ---
+
+    const handleBatchGrantDept = async (depts) => {
+        if (!activeDm) return;
+        const currentEmails = [...activeDm.allowed_users];
+        
+        depts.forEach(deptName => {
+            const emailsInDept = quotaUsers
+                .filter(u => u.department === deptName)
+                .map(u => u.email.toLowerCase());
+            
+            emailsInDept.forEach(email => {
+                if (!currentEmails.includes(email)) {
+                    currentEmails.push(email);
+                }
+            });
+        });
+
+        try {
+            await updateDatamartAccess(activeDm.dataset, activeDm.table, currentEmails);
+            loadDatamarts();
+        } catch (err) { alert("Batch grant failed"); }
+    };
+
+    const handleRemoveUserFromDm = async (dm, email) => {
+        const emails = dm.allowed_users.filter(e => e.toLowerCase() !== email.toLowerCase());
+        try {
+            await updateDatamartAccess(dm.dataset, dm.table, emails);
+            loadDatamarts();
+        } catch (err) { alert("Remove user failed"); }
+    };
+
+    const handleRemoveDeptFromDm = async (dm, deptName) => {
+        if (!confirm(`Remove all access for ${deptName} in ${dm.dataset}.${dm.table}?`)) return;
+        const deptEmails = new Set(quotaUsers.filter(u => u.department === deptName).map(u => u.email.toLowerCase()));
+        const emails = dm.allowed_users.filter(e => !deptEmails.has(e.toLowerCase()));
+        try {
+            await updateDatamartAccess(dm.dataset, dm.table, emails);
+            loadDatamarts();
+        } catch (err) { alert("Remove department failed"); }
+    };
+
+    const handleAddSingleUserToDm = async (email) => {
+        if (!activeDm) return;
+        const currentEmails = [...activeDm.allowed_users];
+        if (!currentEmails.includes(email.toLowerCase())) {
+            currentEmails.push(email.toLowerCase());
+        }
+        try {
+            await updateDatamartAccess(activeDm.dataset, activeDm.table, currentEmails);
+            loadDatamarts();
+        } catch (err) { alert("Grant user failed"); }
+    };
+
     // Derived Data
     const stats = useMemo(() => ({
         total: quotaUsers.length,
@@ -240,6 +406,11 @@ export default function AdminPage() {
         return groups;
     }, [quotaUsers]);
 
+    const availableDepts = useMemo(() => {
+        const depts = new Set(quotaUsers.map(u => u.department || "Other"));
+        return Array.from(depts).sort();
+    }, [quotaUsers]);
+
     const filteredHierarchy = useMemo(() => {
         if (!searchQuery) return orgHierarchy;
         const q = searchQuery.toLowerCase();
@@ -249,14 +420,60 @@ export default function AdminPage() {
         })).filter(dept => dept.users.length > 0);
     }, [orgHierarchy, searchQuery]);
 
+    const groupedDatamarts = useMemo(() => {
+        const q = dmSearchQuery.toLowerCase();
+        
+        return datamarts.map(dm => {
+            const dmFullName = `${dm.dataset}.${dm.table}`.toLowerCase();
+            const allowedGroups = {};
+            
+            dm.allowed_users.forEach(email => {
+                const userObj = quotaUsers.find(qu => qu.email.toLowerCase() === email.toLowerCase());
+                const dept = userObj?.department || "Other";
+                if (!allowedGroups[dept]) allowedGroups[dept] = [];
+                allowedGroups[dept].push({
+                    email,
+                    name: userObj?.name || "Unknown",
+                    avatar_url: userObj?.avatar_url || "" // need to pass avatar if possible, or fetch it
+                });
+            });
+
+            // Filter departments by search
+            const deptsMatch = Object.keys(allowedGroups).some(d => d.toLowerCase().includes(q));
+            const nameMatch = dmFullName.includes(q);
+
+            if (nameMatch || deptsMatch) {
+                return { ...dm, groups: allowedGroups };
+            }
+            return null;
+        }).filter(Boolean);
+    }, [datamarts, quotaUsers, dmSearchQuery]);
+
+    // Flatten org users for AddUser modal
+    const flatOrgUsers = useMemo(() => {
+        const users = [];
+        orgHierarchy.forEach(dept => {
+            dept.users.forEach(u => {
+                if (!users.some(existing => existing.email === u.email)) {
+                    users.push(u);
+                }
+            });
+        });
+        return users;
+    }, [orgHierarchy]);
+
     if (authLoading || adminLoading) return <div className="page-bg"><div className="empty-state">Loading Dashboard...</div></div>;
     if (!user || !isAdmin) return <Navigate to="/" />;
 
     return (
         <div className="admin-page">
             <header className="admin-header">
-                <h1 className="admin-title">Organization Access Control Dashboard</h1>
-                <p className="admin-subtitle">Manage departmental quotas and user access</p>
+                <div style={{ display: 'flex', justifyContent: 'space-between', width: '100%', alignItems: 'center' }}>
+                    <div>
+                        <h1 className="admin-title">Organization Access Control Dashboard</h1>
+                        <p className="admin-subtitle">Manage departmental quotas and user access</p>
+                    </div>
+                </div>
             </header>
 
             <div className="admin-stats">
@@ -366,31 +583,90 @@ export default function AdminPage() {
                 </div>
 
                 {/* --- DATAMART ACCESS --- */}
-                <div className="admin-panel">
-                    <div className="panel-header">
-                        <h2>Datamart Access Control</h2>
-                        <button className="btn-primary" onClick={() => syncAdminDatamarts().then(loadDatamarts)}>Sync from BQ</button>
+                <div style={{ marginTop: '2rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+                        <div>
+                            <h2 style={{ fontSize: '1.75rem', fontWeight: 800, margin: 0 }}>Admin Datamart Access Control</h2>
+                        </div>
+                        <button className="btn-primary" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }} onClick={() => syncAdminDatamarts().then(loadDatamarts)}>
+                            <RefreshIcon /> Sync
+                        </button>
                     </div>
-                    <div style={{ padding: '1.5rem' }}>
-                        {datamarts.map(dm => (
-                            <div key={`${dm.dataset}.${dm.table}`} style={{ marginBottom: '1.5rem', padding: '1rem', border: '1px solid #e2e8f0', borderRadius: '0.75rem' }}>
-                                <div style={{ fontWeight: 700, marginBottom: '0.5rem' }}>{dm.dataset}.{dm.table}</div>
-                                <select 
-                                    multiple className="datamart-select" value={dm.allowed_users}
-                                    onChange={async (e) => {
-                                        const values = Array.from(e.target.selectedOptions, opt => opt.value);
-                                        await updateDatamartAccess(dm.dataset, dm.table, values);
-                                        loadDatamarts();
-                                    }}
-                                >
-                                    {quotaUsers.map(u => <option key={u.email} value={u.email}>{u.name} ({u.email})</option>)}
-                                </select>
-                                <p style={{ fontSize: '0.8rem', color: '#64748b', marginTop: '0.5rem' }}>Hold Cmd/Ctrl to select multiple users.</p>
+
+                    <div className="search-field" style={{ marginBottom: '2rem' }}>
+                        <div style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: '#94a3b8' }}>
+                            <SearchIcon />
+                        </div>
+                        <input 
+                            className="search-input" style={{ paddingLeft: '3rem' }} 
+                            placeholder="Search datasets or departments" value={dmSearchQuery} onChange={e => setDmSearchQuery(e.target.value)} 
+                        />
+                    </div>
+
+                    {groupedDatamarts.map(dm => (
+                        <div key={`${dm.dataset}.${dm.table}`} className="dm-card">
+                            <div className="dm-card-header">
+                                <h3 className="dm-card-title">{dm.dataset}.{dm.table}</h3>
+                                <div className="dm-card-actions">
+                                    <button className="btn-add-inline" onClick={() => { setActiveDm(dm); setShowDeptModal(true); }}>Add Department +</button>
+                                </div>
                             </div>
-                        ))}
-                    </div>
+                            <div className="dept-access-section">
+                                {Object.entries(dm.groups).map(([deptName, users]) => {
+                                    const dmDeptKey = `${dm.dataset}.${dm.table}.${deptName}`;
+                                    const isOpen = openDmDepts[dmDeptKey];
+                                    return (
+                                        <div key={deptName} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                                            <div className="dept-access-header" onClick={() => setOpenDmDepts(prev => ({ ...prev, [dmDeptKey]: !prev[dmDeptKey] }))}>
+                                                <h4>
+                                                    <ChevronDown className={`chevron-icon ${isOpen ? 'open' : ''}`} />
+                                                    {deptName} ({users.length} users)
+                                                </h4>
+                                                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+                                                    <button className="btn-add-dept btn-secondary" style={{ padding: '0.25rem 0.5rem' }} onClick={(e) => { e.stopPropagation(); setActiveDm(dm); setActiveDept(deptName); setShowUserModal(true); }}>
+                                                        Add User +
+                                                    </button>
+                                                </div>
+                                            </div>
+                                            {isOpen && (
+                                                <div className="user-access-list">
+                                                    {users.map(u => (
+                                                        <div key={u.email} className="user-access-item">
+                                                            <div className="user-access-info">
+                                                                <div className="user-access-avatar" style={{ background: '#f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: 600 }}>
+                                                                    {u.avatar_url ? <img src={u.avatar_url} alt="" className="user-access-avatar" /> : u.name?.charAt(0)}
+                                                                </div>
+                                                                <div className="user-access-details">
+                                                                    <h5>{u.name}</h5>
+                                                                    <p>{u.email}</p>
+                                                                </div>
+                                                            </div>
+                                                            <button className="btn-icon" onClick={() => handleRemoveUserFromDm(dm, u.email)}>
+                                                                <CloseIcon />
+                                                            </button>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            )}
+                                        </div>
+                                    );
+                                })}
+                                {Object.keys(dm.groups).length === 0 && <div className="empty-state" style={{ padding: '1.5rem' }}>No departments assigned yet.</div>}
+                            </div>
+                        </div>
+                    ))}
                 </div>
             </div>
+
+            <AddDeptModal 
+                isOpen={showDeptModal} onClose={() => setShowDeptModal(false)}
+                departments={availableDepts} onAdd={handleBatchGrantDept}
+            />
+
+            <AddUserModal 
+                isOpen={showUserModal} onClose={() => setShowUserModal(false)}
+                deptName={activeDept} orgUsers={flatOrgUsers} onAdd={handleAddSingleUserToDm}
+            />
             
             <footer style={{ marginTop: '3rem', textAlign: 'center', padding: '2rem', color: '#94a3b8', fontSize: '0.9rem' }}>
                 &copy; 2026 Organization Access Control System
