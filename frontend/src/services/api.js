@@ -102,6 +102,15 @@ export async function fetchOrgUsers() {
     });
     return handleResponse(response);
 }
+/**
+ * Fetch structured departments and users from Lark.
+ */
+export async function fetchOrgHierarchy() {
+    const response = await fetch(`${API_BASE}/api/admin/org-hierarchy`, {
+        headers: authHeaders(),
+    });
+    return handleResponse(response);
+}
 
 /**
  * Fetch all registered users with quota settings.
@@ -120,11 +129,11 @@ export async function fetchQuotaSettings() {
  * @param {string} name
  * @param {number} dailyLimit
  */
-export async function updateUserQuota(email, name, dailyLimit) {
+export async function updateUserQuota(email, name, dailyLimit, department = "") {
     const response = await fetch(`${API_BASE}/api/admin/update-user`, {
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
-        body: JSON.stringify({ email, name, daily_limit: dailyLimit }),
+        body: JSON.stringify({ email, name, daily_limit: dailyLimit, department }),
     });
     return handleResponse(response);
 }

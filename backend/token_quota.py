@@ -220,12 +220,13 @@ def get_all_quota_settings() -> list[dict]:
             "used_today": used,
             "remaining": max(0, limit - used),
             "is_admin": email.lower() in admins,
+            "department": info.get("department", "Unassigned")
         })
 
     return result
 
 
-def update_user_quota(email: str, name: str, daily_limit: int) -> dict:
+def update_user_quota(email: str, name: str, daily_limit: int, department: str = "") -> dict:
     """
     Add or update a user in the quota config.
 
@@ -233,6 +234,7 @@ def update_user_quota(email: str, name: str, daily_limit: int) -> dict:
         email: User's email (key)
         name: Display name
         daily_limit: Daily token limit
+        department: User's department name
 
     Returns:
         Updated user entry
@@ -253,17 +255,20 @@ def update_user_quota(email: str, name: str, daily_limit: int) -> dict:
         # Merge update so we do not overwrite usage data
         users[target_key]["name"] = name
         users[target_key]["daily_limit"] = daily_limit
+        if department:
+            users[target_key]["department"] = department
     else:
         # Create new entry
         users[target_key] = {
             "name": name,
             "daily_limit": daily_limit,
+            "department": department or "Unassigned",
             "used_today": 0,
             "usage_date": _get_today()
         }
 
     _save_config(config)
-    return {"email": target_key, "name": name, "daily_limit": daily_limit}
+    return {"email": target_key, "name": name, "daily_limit": daily_limit, "department": department}
 
 
 def remove_user_quota(email: str) -> bool:

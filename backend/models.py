@@ -79,6 +79,18 @@ class OrgUser(BaseModel):
     open_id: str = Field("", description="Lark open_id")
 
 
+class DepartmentUsers(BaseModel):
+    """Users grouped by department."""
+    department_id: str = Field(..., description="Lark department ID")
+    department_name: str = Field("", description="Department name")
+    users: list[OrgUser] = Field(default_factory=list, description="Users in this department")
+
+
+class OrgHierarchyResponse(BaseModel):
+    """Response with list of departments and their users."""
+    departments: list[DepartmentUsers] = Field(default_factory=list)
+
+
 class QuotaSettingEntry(BaseModel):
     """A registered user's quota settings for the admin dashboard."""
     email: str = Field("", description="User's email")
@@ -87,6 +99,7 @@ class QuotaSettingEntry(BaseModel):
     used_today: int = Field(0, description="Tokens used today")
     remaining: int = Field(0, description="Tokens remaining today")
     is_admin: bool = Field(False, description="Whether the user is an admin")
+    department: str = Field("", description="User's department (from Lark)")
 
 
 class UpdateUserRequest(BaseModel):
@@ -94,6 +107,7 @@ class UpdateUserRequest(BaseModel):
     email: str = Field(..., description="User's email")
     name: str = Field("", description="Display name")
     daily_limit: int = Field(100_000, description="Daily token limit")
+    department: str = Field("", description="Department name or ID")
 
 
 class RemoveUserRequest(BaseModel):

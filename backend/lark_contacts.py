@@ -164,47 +164,41 @@ async def _collect_all_department_ids(token: str, parent_id: str) -> list[str]:
     return dept_ids
 
 
-async def fetch_all_org_users() -> list[dict]:
-    """
-    Fetch all users across the entire organization.
-
-    Returns:
-        List of dicts: { name, email, avatar_url, department, open_id }
-        Deduplicated by email.
-    """
+async def get_departments() -> list[dict]:
+    """Fetch all top-level departments (parent_id='0')."""
     token = await get_tenant_access_token()
+    return await _fetch_department_children(token, "0")
 
-    # Start recursion from the specific department ID you provided
-    root_dept_id = "od-f1f9a48834fac7e5218e727d21ba1788"
 
-    # Collect all department IDs recursively
-    print(f"[LARK_CONTACTS] Collecting department tree starting from {root_dept_id}...")
-    dept_ids = await _collect_all_department_ids(token, root_dept_id)
-    print(f"[LARK_CONTACTS] Found {len(dept_ids)} departments")
+async def get_users_by_department(dept_id: str) -> list[dict]:
+    """Fetch all users directly under a specific department."""
+    token = await get_tenant_access_token()
+    return await _fetch_users_in_department(token, dept_id)
 
-    # Fetch users from each department
-    seen_emails: set[str] = set()
-    all_users: list[dict] = []
 
-    for dept_id in dept_ids:
-        raw_users = await _fetch_users_in_department(token, dept_id)
+async def fetch_org_hierarchy() -> list[dict]:
+    """
+    Fetch all departments and their users in a single structured list.
+    Follows the logic provided by the user.
+    """
+    departments = await get_departments()
+    result = []
 
-        for u in raw_users:
+    for dept in departments:
+        dept_id = dept.get("open_department_id", "") or dept.get("department_id", "")
+        dept_name = dept.get("name", "Unknown Department")
+
+        print(f"[LARK_CONTACTS] Fetching users from: {dept_name} ({dept_id})")
+        users = await get_users_by_department(dept_id)
+
+        # Convert users to OrgUser-like dicts
+        friendly_users = []
+        for u in users:
             email = u.get("email", "") or u.get("enterprise_email", "")
             if not email:
-                # Skip users without email
                 continue
-
-            email_lower = email.lower()
-            if email_lower in seen_emails:
-                continue
-            seen_emails.add(email_lower)
-
-            # Extract department names
-            dept_ids_list = u.get("department_ids", [])
-            dept_name = dept_id  # fallback
-
-            all_users.append({
+                
+            friendly_users.append({
                 "name": u.get("name", "Unknown"),
                 "email": email,
                 "avatar_url": u.get("avatar", {}).get("avatar_240", ""),
@@ -212,5 +206,30 @@ async def fetch_all_org_users() -> list[dict]:
                 "open_id": u.get("open_id", ""),
             })
 
-    print(f"[LARK_CONTACTS] Fetched {len(all_users)} unique users")
+        result.append({
+            "department_id": dept_id,
+            "department_name": dept_name,
+            "users": friendly_users
+        })
+
+    return result
+
+
+async def fetch_all_org_users() -> list[dict]:
+    """
+    Fetch all unique users across all departments.
+    Maintained for backward compatibility.
+    """
+    hierarchy = await fetch_org_hierarchy()
+    
+    seen_emails = set()
+    all_users = []
+    
+    for dept in hierarchy:
+        for u in dept["users"]:
+            email_lower = u["email"].lower()
+            if email_lower not in seen_emails:
+                seen_emails.add(email_lower)
+                all_users.append(u)
+                
     return all_users

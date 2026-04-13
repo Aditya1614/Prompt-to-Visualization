@@ -55,7 +55,7 @@ from token_quota import (
     set_admin_role, get_all_datamarts, sync_datamarts, update_datamart_access, 
     has_datamart_access
 )
-from lark_contacts import fetch_all_org_users
+from lark_contacts import fetch_all_org_users, fetch_org_hierarchy
 
 # Load environment variables
 load_dotenv()
@@ -520,6 +520,18 @@ async def admin_get_org_users(user: dict = Depends(get_current_user)):
         raise HTTPException(status_code=500, detail=f"Failed to fetch org users: {str(e)}")
 
 
+@app.get("/api/admin/org-hierarchy")
+async def admin_get_org_hierarchy(user: dict = Depends(get_current_user)):
+    """Fetch structured departments and users from Lark."""
+    require_admin(user)
+    try:
+        hierarchy = await fetch_org_hierarchy()
+        return {"departments": hierarchy}
+    except Exception as e:
+        print(f"[ADMIN] Org hierarchy fetch error: {e}")
+        raise HTTPException(status_code=500, detail=f"Failed to fetch org hierarchy: {str(e)}")
+
+
 @app.get("/api/admin/quota-settings")
 async def admin_get_quota_settings(user: dict = Depends(get_current_user)):
     """Get all registered users with their quota settings and usage."""
@@ -534,7 +546,7 @@ async def admin_update_user(
 ):
     """Add or update a user's quota settings."""
     require_admin(user)
-    result = update_user_quota(request.email, request.name, request.daily_limit)
+    result = update_user_quota(request.email, request.name, request.daily_limit, request.department)
     return {"status": "ok", "user": result}
 
 
