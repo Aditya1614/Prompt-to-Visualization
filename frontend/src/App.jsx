@@ -14,15 +14,17 @@ const COMPANIES = [
 export default function App() {
   const { user, loading: authLoading, logout } = useAuth();
   const [prompt, setPrompt] = useState("");
-  const [result, setResult] = useState(null);
+  const [messages, setMessages] = useState([]); // { role, content, visualization?, insight?, token_usage?, error? }
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
 
   // Company & Data Mart
   const [selectedCompany, setSelectedCompany] = useState("");
   const [tables, setTables] = useState([]);
   const [selectedTable, setSelectedTable] = useState("");
   const [tablesLoading, setTablesLoading] = useState(false);
+  const [tableSearch, setTableSearch] = useState("");
 
   // Custom dropdown open state
   const [companyDropdownOpen, setCompanyDropdownOpen] = useState(false);
@@ -82,43 +84,87 @@ export default function App() {
     setCompanyDropdownOpen(false);
     setSelectedTable("");
     setTableDropdownOpen(false);
-    setResult(null);
+    setTableSearch("");
+    setMessages([]);
   };
+
+
 
   const handleTableSelect = (name) => {
     setSelectedTable(name);
     setTableDropdownOpen(false);
-    setResult(null);
+    setTableSearch("");
+    setMessages([]);
   };
+
+
 
   const handleGenerate = async () => {
     if (!prompt.trim() || !selectedTable) return;
 
+    const currentPrompt = prompt;
+    setPrompt(""); // Clear input early for better UX
     setLoading(true);
     setError("");
-    setResult(null);
+
+    // Add user message to UI
+    const userMessage = { role: "user", content: currentPrompt };
+    setMessages((prev) => [...prev, userMessage]);
 
     try {
-      const response = await generateVisualization(prompt, {
+      // Build history for the backend (excluding current message)
+      const history = messages.map(m => ({
+        role: m.role,
+        content: m.content
+      }));
+
+      const response = await generateVisualization(currentPrompt, {
         tableName: selectedTable,
         dataset: selectedCompany,
+        history: history
       });
 
       if (response.rejected) {
-        setError(response.reject_reason || "Request was rejected.");
+        setMessages((prev) => [
+          ...prev,
+          { 
+            role: "model", 
+            content: response.reject_reason || "Request was rejected.",
+            error: true
+          }
+        ]);
       } else {
-        setResult(response);
-        // Update quota from response
+        // Add model response
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "model",
+            content: response.insight,
+            visualization: {
+              type: response.chart_type,
+              config: response.chart_config
+            },
+            insight: response.insight,
+            token_usage: response.token_usage
+          }
+        ]);
+
+        // Update quota
         if (response.quota) {
           setQuota(response.quota);
         }
       }
     } catch (err) {
       setError(err.message || "An unexpected error occurred.");
+      setMessages((prev) => [
+        ...prev,
+        { role: "model", content: err.message || "Error occurred", error: true }
+      ]);
     } finally {
       setLoading(false);
     }
   };
+
 
   const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey && !loading) {
@@ -148,246 +194,211 @@ export default function App() {
   }
 
   return (
+
     <div className="page-bg">
-      <div className="card-container">
+      <div className="chat-container">
+        {/* ─── Left Sidebar (Config & Quota) ─── */}
+        <aside className="chat-sidebar">
+          <div className="sidebar-top">
+            <div className="sidebar-brand">
+              <span className="sparkle-icon">✨</span>
+              <h1 className="sidebar-title">VizAgent</h1>
+            </div>
 
-        {/* ─── Left Sidebar ─── */}
-        <aside className="sidebar">
-          {/* User header */}
-          <div className="user-header">
-            <div className="user-info">
-              {user.avatar_url ? (
-                <img className="user-avatar" src={user.avatar_url} alt={user.name} />
-              ) : (
-                <div className="user-avatar-placeholder">
-                  {user.name?.charAt(0)?.toUpperCase() || "?"}
+            {/* Quota bar */}
+            {quota?.registered && (
+              <div className="quota-widget">
+                <div className="quota-header">
+                  <span>Quota</span>
+                  <span className="quota-val">{(quota.remaining).toLocaleString()}</span>
                 </div>
-              )}
-              <div className="user-details">
-                <span className="user-name">{user.name}</span>
-                <span className="user-email">{user.email}</span>
+                <div className="quota-track">
+                  <div
+                    className={`quota-fill ${quota.remaining / quota.daily_limit < 0.1 ? "danger" : quota.remaining / quota.daily_limit < 0.3 ? "warning" : ""}`}
+                    style={{ width: `${Math.min(100, (quota.used_today / quota.daily_limit) * 100)}%` }}
+                  />
+                </div>
               </div>
-            </div>
-            <div className="user-actions" style={{ display: 'flex', gap: '0.5rem' }}>
-              {quota?.is_admin && (
-                <button className="logout-btn" onClick={() => window.location.href = '#/admin'} title="Admin Dashboard">
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="3"></circle>
-                    <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-                  </svg>
-                </button>
-              )}
-              <button className="logout-btn" onClick={logout} title="Logout">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" />
-                  <polyline points="16 17 21 12 16 7" />
-                  <line x1="21" y1="12" x2="9" y2="12" />
-                </svg>
-              </button>
+            )}
+
+            <div className="sidebar-divider" />
+
+            <div className="sidebar-sections">
+              {/* Company Dropdown */}
+              <div className="config-section">
+                <label>Company</label>
+                <div className="dropdown-wrapper">
+                  <button
+                    className="dropdown-trigger"
+                    onClick={() => { setCompanyDropdownOpen(!companyDropdownOpen); setTableDropdownOpen(false); }}
+                  >
+                    <span>{companyLabel || "Select..."}</span>
+                    <svg className={`chevron ${companyDropdownOpen ? "open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                  {companyDropdownOpen && (
+                    <div className="dropdown-menu">
+                      {COMPANIES.map((c) => (
+                        <button key={c.value} className="dropdown-item" onClick={() => handleCompanySelect(c.value)}>{c.label}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Data Mart Dropdown */}
+              <div className="config-section">
+                <label>Data Mart</label>
+                <div className="dropdown-wrapper">
+                  <button
+                    className={`dropdown-trigger ${!selectedCompany || tablesLoading ? "disabled" : ""}`}
+                    onClick={() => { if (selectedCompany && !tablesLoading) { setTableDropdownOpen(!tableDropdownOpen); setCompanyDropdownOpen(false); } }}
+                    disabled={!selectedCompany || tablesLoading}
+                  >
+                    <span>{tablesLoading ? "Loading..." : selectedTable || "Select..."}</span>
+                    <svg className={`chevron ${tableDropdownOpen ? "open" : ""}`} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                  </button>
+                  {tableDropdownOpen && (
+                    <div className="dropdown-menu scrollable">
+                      <div className="dropdown-search-wrapper">
+                        <input
+                          type="text"
+                          className="dropdown-search-input"
+                          placeholder="Search tables..."
+                          value={tableSearch}
+                          onChange={(e) => setTableSearch(e.target.value)}
+                          autoFocus
+                          onClick={(e) => e.stopPropagation()}
+                        />
+                      </div>
+                      <div className="dropdown-items-container">
+                        {tables.filter(t => t.name.toLowerCase().includes(tableSearch.toLowerCase())).map((t) => (
+                          <button key={t.name} className="dropdown-item" onClick={() => handleTableSelect(t.name)}>{t.name}</button>
+                        ))}
+                        {tables.filter(t => t.name.toLowerCase().includes(tableSearch.toLowerCase())).length === 0 && (
+                          <div className="dropdown-no-results">No tables found.</div>
+                        )}
+                      </div>
+                    </div>
+                  )}
+
+                </div>
+              </div>
             </div>
           </div>
 
-
-          {/* Quota bar */}
-          {quota?.registered && (
-            <div className="quota-bar-container">
-              <div className="quota-bar-header">
-                <span className="quota-label">Daily Token Quota</span>
-                <span className="quota-numbers">
-                  {(quota.remaining).toLocaleString()} left
-                </span>
+          <div className="sidebar-bottom">
+            <div className="user-pill">
+              <img className="user-avatar" src={user.avatar_url || "https://ui-avatars.com/api/?name="+user.name} alt={user.name} />
+              <div className="user-info-min">
+                <span className="user-name-min">{user.name}</span>
+                {quota?.is_admin && <span className="admin-tag">Admin</span>}
               </div>
-              <div className="quota-track">
-                <div
-                  className={`quota-fill ${quota.remaining / quota.daily_limit < 0.1 ? "danger" : quota.remaining / quota.daily_limit < 0.3 ? "warning" : ""}`}
-                  style={{ width: `${Math.min(100, (quota.used_today / quota.daily_limit) * 100)}%` }}
-                />
-              </div>
-              <div className="quota-sub">
-                {quota.used_today.toLocaleString()} / {quota.daily_limit.toLocaleString()} used
-              </div>
-            </div>
-          )}
-
-          <div className="sidebar-header">
-            <span className="sparkle-icon">✨</span>
-            <h2 className="sidebar-title">AI Visualization</h2>
-          </div>
-
-          <div className="sidebar-body">
-            {/* Company Dropdown */}
-            <div className="field-group">
-              <label className="field-label">Company</label>
-              <div className="dropdown-wrapper">
-                <button
-                  className="dropdown-trigger"
-                  onClick={() => { setCompanyDropdownOpen(!companyDropdownOpen); setTableDropdownOpen(false); }}
-                >
-                  <span className={selectedCompany ? "" : "placeholder"}>
-                    {companyLabel || "Select Company"}
-                  </span>
-                  <svg className={`chevron ${companyDropdownOpen ? "open" : ""}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-                {companyDropdownOpen && (
-                  <div className="dropdown-menu">
-                    {COMPANIES.map((c) => (
-                      <button
-                        key={c.value}
-                        className={`dropdown-item ${selectedCompany === c.value ? "active" : ""}`}
-                        onClick={() => handleCompanySelect(c.value)}
-                      >
-                        {c.label}
-                      </button>
-                    ))}
-                  </div>
+              <div className="user-actions-row">
+                {quota?.is_admin && (
+                   <button className="icon-btn" onClick={() => window.location.href = '#/admin'} title="Admin">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                   </button>
                 )}
-              </div>
-            </div>
-
-            {/* Data Mart Dropdown */}
-            <div className="field-group">
-              <label className="field-label">Data Mart</label>
-              <div className="dropdown-wrapper">
-                <button
-                  className={`dropdown-trigger ${!selectedCompany || tablesLoading ? "disabled" : ""}`}
-                  onClick={() => { if (selectedCompany && !tablesLoading) { setTableDropdownOpen(!tableDropdownOpen); setCompanyDropdownOpen(false); } }}
-                  disabled={!selectedCompany || tablesLoading}
-                >
-                  <span className={selectedTable ? "" : "placeholder"}>
-                    {tablesLoading
-                      ? "Loading..."
-                      : selectedTable
-                        ? selectedTable
-                        : selectedCompany
-                          ? "Select Data Mart"
-                          : "Select Company First"}
-                  </span>
-                  <svg className={`chevron ${tableDropdownOpen ? "open" : ""}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+                <button className="icon-btn logout" onClick={logout} title="Logout">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
                 </button>
-                {tableDropdownOpen && (
-                  <div className="dropdown-menu scrollable">
-                    {tables.map((t) => (
-                      <button
-                        key={t.name}
-                        className={`dropdown-item ${selectedTable === t.name ? "active" : ""}`}
-                        onClick={() => handleTableSelect(t.name)}
-                      >
-                        <span>{t.name}</span>
-                      </button>
-                    ))}
-                    {tables.length === 0 && (
-                      <div className="dropdown-empty">No tables found</div>
-                    )}
-                  </div>
-                )}
               </div>
             </div>
-
-            {/* Prompt */}
-            <div className="field-group" style={{ paddingTop: 8 }}>
-              <label className="field-label">What would you like to visualize?</label>
-              <textarea
-                className="prompt-textarea"
-                placeholder="e.g., Show me the monthly sales trend for Widget compared to Gadget..."
-                value={prompt}
-                onChange={(e) => setPrompt(e.target.value)}
-                onKeyDown={handleKeyDown}
-                rows={5}
-              />
-            </div>
-
-            {/* Generate Button */}
-            <button
-              className={`generate-btn ${loading ? "loading" : ""}`}
-              onClick={handleGenerate}
-              disabled={!canGenerate}
-            >
-              {loading ? (
-                <>
-                  <span className="spinner" />
-                  Generating...
-                </>
-              ) : (
-                <>
-                  <span className="btn-sparkle">✨</span>
-                  Generate Visualization
-                </>
-              )}
-            </button>
-          </div>
-
-          {/* Error */}
-          {error && (
-            <div className="error-box">
-              <span>⚠️</span>
-              <span>{error}</span>
-            </div>
-          )}
-
-          {/* Tip box */}
-          <div className="tip-box">
-            <strong>Tip:</strong> Be specific about the metrics (e.g., "Revenue", "Count") and time periods you want to analyze.
           </div>
         </aside>
 
-        {/* ─── Right: Visualization Area ─── */}
-        <main className="main-area">
-          {loading ? (
-            <div className="loading-state">
-              <div className="loading-spinner-lg" />
-              <p className="loading-text">Analyzing data and generating chart...</p>
-            </div>
-          ) : result?.chart_config?.data?.length > 0 ? (
-            <div className="chart-result">
-              <ChartRenderer
-                chartType={result.chart_type}
-                chartConfig={result.chart_config}
-              />
-              {result.insight && (
-                <div className="insight-box">
-                  <span className="insight-icon">💡</span>
-                  <div>
-                    <h4 className="insight-title">AI Generated Insight</h4>
-                    <p className="insight-text">{result.insight}</p>
+        {/* ─── Main Chat Area ─── */}
+        <main className="chat-main">
+          <div className="messages-scroller">
+            {messages.length === 0 ? (
+              <div className="chat-empty-state">
+                <div className="welcome-hero">
+                  <div className="hero-icon">📊</div>
+                  <h2>Intelligence at your fingertips</h2>
+                  <p>Select a <strong>Data Mart</strong> and ask me anything about your data.</p>
+                </div>
+                <div className="suggestion-grid">
+                  <div className="suggestion-card" onClick={() => setPrompt("Show me daily sales trends")}>
+                    <span>📈</span> daily sales trends
+                  </div>
+                  <div className="suggestion-card" onClick={() => setPrompt("Top 5 products by revenue")}>
+                    <span>🏆</span> top 5 products
+                  </div>
+                  <div className="suggestion-card" onClick={() => setPrompt("Monthly distribution of orders")}>
+                    <span>📅</span> monthly distribution
                   </div>
                 </div>
-              )}
-              {result?.token_usage && (
-                <div className="token-stats">
-                  <div className="token-stat">
-                    <span className="token-stat-value">{result.token_usage.prompt_tokens.toLocaleString()}</span>
-                    <span className="token-stat-label">Input</span>
-                  </div>
-                  <div className="token-divider" />
-                  <div className="token-stat">
-                    <span className="token-stat-value">{result.token_usage.completion_tokens.toLocaleString()}</span>
-                    <span className="token-stat-label">Completion</span>
-                  </div>
-                  <div className="token-divider" />
-                  <div className="token-stat">
-                    <span className="token-stat-value">{result.token_usage.agent_turns}</span>
-                    <span className="token-stat-label">Agent Turn{result.token_usage.agent_turns !== 1 ? "s" : ""}</span>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="empty-state">
-              {/* Subtle bar chart placeholder */}
-              <div className="empty-bars">
-                <div className="bar bar1" />
-                <div className="bar bar2" />
-                <div className="bar bar3" />
-                <div className="bar bar4" />
-                <div className="bar bar5" />
               </div>
-              <h2 className="empty-title">Visualization Space</h2>
-              <p className="empty-subtitle">Select data and enter a prompt to generate insights.</p>
-            </div>
-          )}
-        </main>
+            ) : (
+              <div className="messages-list">
+                {messages.map((msg, idx) => (
+                  <div key={idx} className={`message-row ${msg.role}`}>
+                    <div className="message-bubble">
+                      {msg.role === 'user' ? (
+                        <div className="user-message-text">{msg.content}</div>
+                      ) : (
+                        <div className="model-message-content">
+                          {msg.visualization && (
+                            <div className="message-chart">
+                              <ChartRenderer
+                                chartType={msg.visualization.type}
+                                chartConfig={msg.visualization.config}
+                              />
+                            </div>
+                          )}
+                          <div className="message-insight">
+                            {msg.content}
+                          </div>
+                          {msg.token_usage && (
+                             <div className="message-meta">
+                               {msg.token_usage.total_tokens.toLocaleString()} tokens
+                             </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                ))}
+                {loading && (
+                   <div className="message-row model">
+                     <div className="message-bubble loading-bubble">
+                       <span className="dot-typing"></span>
+                     </div>
+                   </div>
+                )}
+                {error && <div className="chat-error-toast">{error}</div>}
+              </div>
+            )}
+          </div>
 
+          {/* Bottom Input Area */}
+          <div className="chat-input-wrapper">
+            <div className="chat-input-container">
+              <textarea
+                className="chat-textarea"
+                placeholder={selectedTable ? "Ask a question or follow up..." : "Select a Data Mart first..."}
+                value={prompt}
+                onChange={(e) => setPrompt(e.target.value)}
+                onKeyDown={handleKeyDown}
+                disabled={!selectedTable || loading}
+                rows={1}
+              />
+              <button
+                className="chat-send-btn"
+                onClick={handleGenerate}
+                disabled={!canGenerate}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13"></line>
+                  <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+                </svg>
+              </button>
+            </div>
+            <p className="chat-disclaimer">VizAgent may refine previous results based on your context.</p>
+          </div>
+        </main>
       </div>
+
 
       {/* Unregistered user popup */}
       {showAccessPopup && (

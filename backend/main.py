@@ -17,6 +17,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import RedirectResponse
 
 from google.adk.runners import InMemoryRunner
+
 from google import genai
 from google.genai import types
 
@@ -57,6 +58,14 @@ from token_quota import (
 )
 from lark_contacts import fetch_all_org_users, fetch_org_hierarchy
 
+import logging
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
+)
+
 # Load environment variables
 load_dotenv()
 
@@ -85,8 +94,9 @@ app.add_middleware(
 APP_NAME = "prompt_to_viz"
 runner = InMemoryRunner(
     agent=root_agent,
-    app_name=APP_NAME,
+    app_name=APP_NAME
 )
+
 
 # Initialize GenAI client for token counting
 client = genai.Client()
@@ -150,75 +160,98 @@ Other rules:
 """
 
 
-async def run_pipeline(prompt: str, data_id: str) -> tuple[str, TokenUsage]:
+async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = None) -> tuple[str, TokenUsage]:
     """
-    Deterministic 2-pass pipeline:
-      Pass 1 — LLM generates a pandas query string
-      Pass 2 — Python executes it; LLM formats the results as chart JSON
+    Stateful pipeline using Google ADK Agent.
     """
     os.environ["GOOGLE_GENAI_USE_VERTEXAI"] = "TRUE"
 
-    total_prompt_tokens = 0
-    total_completion_tokens = 0
+    # Reconstruct history transcript to embed in the prompt for stateless context awareness
+    history_context = ""
+    if history:
+        for msg in history:
+            role = "User" if msg.get("role") == "user" else "Assistant"
+            history_context += f"{role}: {msg.get('content')}\n\n"
 
-    schema_info = data_manager.get_schema(data_id)
-    schema_str = json.dumps(schema_info, indent=2, default=str)
+    # Compound input for the agent
+    user_input = f"""data_id: {data_id}
 
-    from datetime import date
-    today_str = date.today().isoformat()  # e.g. "2026-02-26"
+### CONVERSATION HISTORY
+{history_context if history_context else "No previous history."}
 
-    # ── Pass 1: generate pandas query ──────────────────────────────────────
-    pass1_prompt = QUERY_GEN_PROMPT.format(schema=schema_str, question=prompt, today=today_str)
-    pass1_resp = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=pass1_prompt,
-    )
-    if pass1_resp.usage_metadata:
-        total_prompt_tokens += pass1_resp.usage_metadata.prompt_token_count or 0
-        total_completion_tokens += pass1_resp.usage_metadata.candidates_token_count or 0
+### CURRENT USER REQUEST
+{prompt}
+"""
+    
+    try:
+        # Create a unique session for this request
+        # We use the runner's internal session_service to avoid extra imports
+        sid = f"session_{uuid.uuid4().hex[:8]}"
+        uid = "user_default"
+        
+        # Await session creation (InMemoryRunner's service is async)
+        await runner.session_service.create_session(user_id=uid, session_id=sid, app_name=APP_NAME)
 
-    pandas_query = pass1_resp.text.strip().strip("`").strip()
-    # Strip leading "python" if model wrapped it in a code fence
-    pandas_query = re.sub(r'^python\s+', '', pandas_query, flags=re.IGNORECASE).strip()
+        
+        # Run the agent using keyword-only arguments as per signature
+        from google.genai import types
+        
+        events = runner.run(
+            user_id=uid,
+            session_id=sid,
+            new_message=types.Content(role="user", parts=[types.Part(text=user_input)])
+        )
 
-    print(f"[PIPELINE] Pass 1 — generated pandas query:\n  {pandas_query}")
 
-    # ── Execute query deterministically ──────────────────────────────────
-    query_result = data_manager.query_data(data_id, pandas_query)
-    if "error" in query_result:
-        print(f"[PIPELINE] Query error: {query_result['error']}")
+        
+        raw_json = ""
+        for event in events:
+            # Debug log
+            logger.error(f"[ADK EVENT] Author: {event.author}, Type: {type(event)}, Final: {event.is_final_response()}, Partial: {getattr(event, 'partial', 'N/A')}")
+            
+            # Check for errors
+            if hasattr(event, 'errors') and event.errors:
+                logger.error(f"[ADK ERROR EVENT] {event.errors}")
+                raise ValueError(f"Agent error event: {event.errors}")
+
+            # Collect content from final response
+            if event.is_final_response() and event.content and event.content.parts:
+                text = event.content.parts[0].text
+                if text:
+                    raw_json = text
+                    # We continue to see if there are more events, but usually final is final
+        
+        if not raw_json:
+            logger.error("[ADK] No final response detected in event stream.")
+            # Fallback: if we didn't get a final response, let's look at all events and take the last one with text
+            # but for now, let's keep the error to see the logs
+            raise ValueError("No final response from agent. Check backend logs for event stream.")
+
+
+        
+        # Token usage is typically handled differently in ADK events
+        # For now, we set to 0 to avoid crashing
+        prompt_tokens = 0
+        completion_tokens = 0
+
+        
+        token_usage = TokenUsage(
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            total_tokens=prompt_tokens + completion_tokens,
+            agent_turns=1
+        )
+        
+        return raw_json, token_usage
+        
+    except Exception as e:
+        logger.error(f"[AGENT ERROR] {e}")
         return json.dumps({
             "rejected": True,
-            "reject_reason": f"Could not execute the data query: {query_result['error']}"
-        }), TokenUsage(prompt_tokens=total_prompt_tokens,
-                       completion_tokens=total_completion_tokens,
-                       total_tokens=total_prompt_tokens + total_completion_tokens,
-                       agent_turns=1)
+            "reject_reason": f"Agent error: {str(e)}"
+        }), TokenUsage()
 
-    result_records = query_result.get("data", [])
-    print(f"[PIPELINE] Query returned {len(result_records)} rows")
 
-    # ── Pass 2: format results as chart JSON ──────────────────────────────
-    results_str = json.dumps(result_records, ensure_ascii=False, indent=2, default=str)
-    pass2_prompt = CHART_FORMAT_PROMPT.format(question=prompt, results=results_str)
-    pass2_resp = client.models.generate_content(
-        model="gemini-2.0-flash",
-        contents=pass2_prompt,
-    )
-    if pass2_resp.usage_metadata:
-        total_prompt_tokens += pass2_resp.usage_metadata.prompt_token_count or 0
-        total_completion_tokens += pass2_resp.usage_metadata.candidates_token_count or 0
-
-    raw_json = pass2_resp.text.strip()
-    print(f"[PIPELINE] Pass 2 — chart JSON received ({len(raw_json)} chars)")
-
-    token_usage = TokenUsage(
-        prompt_tokens=total_prompt_tokens,
-        completion_tokens=total_completion_tokens,
-        total_tokens=total_prompt_tokens + total_completion_tokens,
-        agent_turns=2,
-    )
-    return raw_json, token_usage
 
 
 def parse_agent_response(raw: str) -> VisualizeResponse:
@@ -243,8 +276,8 @@ def parse_agent_response(raw: str) -> VisualizeResponse:
     try:
         data = json.loads(cleaned)
     except json.JSONDecodeError as e:
-        print(f"[PARSE ERROR] {e}")
-        print(f"[RAW RESPONSE] {raw[:500]}")
+        logger.error(f"[PARSE ERROR] {e}")
+        logger.error(f"[RAW RESPONSE] {raw[:500]}")
         return VisualizeResponse(
             rejected=True,
             reject_reason="The AI agent returned an invalid response. Please try rephrasing your question.",
@@ -395,7 +428,7 @@ async def count_tokens(request: VisualizeRequest, user: dict = Depends(get_curre
         )
         return CountTokensResponse(total_tokens=response.total_tokens)
     except Exception as e:
-        print(f"Token counting error: {e}")
+        logger.error(f"Token counting error: {e}")
         raise HTTPException(status_code=500, detail=f"Token counting failed: {str(e)}")
 
 
@@ -447,7 +480,7 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
         try:
             rows = bq.fetch_all_rows(table_name, dataset)
             data_manager.store_data_with_id(data_id, rows)
-            print(f"[BQ] Loaded {len(rows)} rows from {dataset}.{table_name}")
+            logger.error(f"[BQ] Loaded {len(rows)} rows from {dataset}.{table_name}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load table data: {str(e)}")
 
@@ -461,7 +494,7 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
         raise HTTPException(status_code=400, detail="Either 'data' or 'table_name' must be provided")
 
     try:
-        raw_response, token_usage = await run_pipeline(request.prompt, data_id)
+        raw_response, token_usage = await run_agent_pipeline(request.prompt, data_id, request.history)
 
         if not raw_response:
             return VisualizeResponse(
@@ -478,9 +511,10 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
             updated_quota = consume_tokens(email, token_usage.total_tokens)
             response.quota = QuotaInfo(**updated_quota)
         except ValueError as qe:
-            print(f"[QUOTA] Warning: {qe}")
+            logger.error(f"[QUOTA] Warning: {qe}")
 
         return response
+
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Agent error: {str(e)}")
@@ -516,7 +550,7 @@ async def admin_get_org_users(user: dict = Depends(get_current_user)):
         users = await fetch_all_org_users()
         return {"users": [OrgUser(**u) for u in users]}
     except Exception as e:
-        print(f"[ADMIN] Org user fetch error: {e}")
+        logger.error(f"[ADMIN] Org user fetch error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch org users: {str(e)}")
 
 
@@ -528,7 +562,7 @@ async def admin_get_org_hierarchy(user: dict = Depends(get_current_user)):
         hierarchy = await fetch_org_hierarchy()
         return {"departments": hierarchy}
     except Exception as e:
-        print(f"[ADMIN] Org hierarchy fetch error: {e}")
+        logger.error(f"[ADMIN] Org hierarchy fetch error: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to fetch org hierarchy: {str(e)}")
 
 
@@ -605,7 +639,7 @@ async def admin_sync_datamarts(user: dict = Depends(get_current_user)):
             for t in tables:
                 available.append({"dataset": dataset, "table": t["name"]})
         except Exception as e:
-            print(f"[BQ SYNC ERROR] Dataset {dataset}: {e}")
+            logger.error(f"[BQ SYNC ERROR] Dataset {dataset}: {e}")
             
     updated = sync_datamarts(available)
     return {"status": "ok", "synced_count": len(available), "total_configured": len(updated)}

@@ -9,6 +9,8 @@ class VisualizeRequest(BaseModel):
     data: Optional[list[dict[str, Any]]] = Field(None, description="JSON array of data records (for JSON paste mode)")
     table_name: Optional[str] = Field(None, description="BigQuery table name (for dropdown mode)")
     dataset: Optional[str] = Field(None, description="BigQuery dataset name (company)")
+    history: Optional[list[dict[str, Any]]] = Field(None, description="Conversation history (role and content)")
+
 
 
 class ChartConfig(BaseModel):

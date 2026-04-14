@@ -38,10 +38,10 @@ async function handleResponse(response) {
 /**
  * Call the /api/visualize endpoint.
  * @param {string} prompt - The user's question
- * @param {Object} options - { tableName, dataset } or { data }
+ * @param {Object} options - { tableName, dataset, history } or { data, history }
  * @returns {Promise<Object>} The visualization response
  */
-export async function generateVisualization(prompt, { data, tableName, dataset }) {
+export async function generateVisualization(prompt, { data, tableName, dataset, history = [] }) {
     const body = { prompt };
     if (tableName) {
         body.table_name = tableName;
@@ -49,8 +49,12 @@ export async function generateVisualization(prompt, { data, tableName, dataset }
     } else {
         body.data = data;
     }
+    if (history && history.length > 0) {
+        body.history = history;
+    }
 
     const response = await fetch(`${API_BASE}/api/visualize`, {
+
         method: "POST",
         headers: authHeaders({ "Content-Type": "application/json" }),
         body: JSON.stringify(body),
