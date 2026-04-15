@@ -1,0 +1,114 @@
+/* Login Page Premium Styles */
+.login-page {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--bg-page);
+  padding: 24px;
+}
+
+.login-card {
+  background: var(--bg-main);
+  width: 100%;
+  max-width: 440px;
+  padding: 48px;
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  text-align: center;
+  border: 1px solid var(--border);
+  animation: slideIn 0.5s ease-out;
+}
+
+.login-brand {
+  margin-bottom: 32px;
+}
+
+.login-sparkle {
+  font-size: 2.5rem;
+  margin-bottom: 16px;
+  display: inline-block;
+  background: var(--accent-light);
+  width: 64px;
+  height: 64px;
+  line-height: 64px;
+  border-radius: 16px;
+}
+
+.login-title {
+  font-family: 'Outfit', sans-serif;
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-primary);
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.login-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 32px 0;
+}
+
+.login-message {
+  margin-bottom: 40px;
+}
+
+.login-icon-lock, .login-icon-denied {
+  font-size: 2rem;
+  margin-bottom: 16px;
+  display: block;
+}
+
+.login-heading {
+  font-family: 'Outfit', sans-serif;
+  font-size: 1.25rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+}
+
+.login-desc {
+  color: var(--text-secondary);
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.login-btn {
+  width: 100%;
+  background: var(--accent);
+  color: white;
+  border: none;
+  padding: 14px;
+  font-size: 1rem;
+  font-weight: 600;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  transition: var(--transition);
+  box-shadow: 0 4px 12px rgba(79, 70, 229, 0.2);
+}
+
+.login-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 20px rgba(79, 70, 229, 0.3);
+  filter: brightness(1.1);
+}
+
+.lark-icon {
+  width: 20px;
+  height: 20px;
+}
+
+.login-footer {
+  margin-top: 32px;
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+}

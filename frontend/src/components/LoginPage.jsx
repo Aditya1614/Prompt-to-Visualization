@@ -6,6 +6,8 @@
  */
 
 import { useAuth } from "../contexts/AuthContext";
+import "./LoginPage.css";
+
 
 export default function LoginPage() {
   const { login } = useAuth();

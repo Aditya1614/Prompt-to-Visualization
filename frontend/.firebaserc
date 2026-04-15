@@ -1,5 +1,16 @@
 {
   "projects": {
-    "default": "prompt2vis"
-  }
+    "default": "prompt2vis",
+    "production": "database-replica-bigquery"
+  },
+  "targets": {
+    "database-replica-bigquery": {
+      "hosting": {
+        "viz": [
+          "viz-agent"
+        ]
+      }
+    }
+  },
+  "etags": {}
 }

@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+
 import ChartRenderer from "./components/ChartRenderer";
 import LoginPage from "./components/LoginPage";
 import { useAuth } from "./contexts/AuthContext";
@@ -33,6 +34,8 @@ export default function App() {
   // Token quota
   const [quota, setQuota] = useState(null);
   const [showAccessPopup, setShowAccessPopup] = useState(false);
+  const messagesEndRef = useRef(null);
+
 
   // Load tables when company changes
   useEffect(() => {
@@ -62,6 +65,12 @@ export default function App() {
       console.error("Failed to load quota:", err);
     }
   };
+
+  // Scroll to bottom when messages or loading state changes
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
+
 
   const loadTables = async (dataset) => {
     setTablesLoading(true);
@@ -127,8 +136,8 @@ export default function App() {
       if (response.rejected) {
         setMessages((prev) => [
           ...prev,
-          { 
-            role: "model", 
+          {
+            role: "model",
             content: response.reject_reason || "Request was rejected.",
             error: true
           }
@@ -288,16 +297,16 @@ export default function App() {
 
           <div className="sidebar-bottom">
             <div className="user-pill">
-              <img className="user-avatar" src={user.avatar_url || "https://ui-avatars.com/api/?name="+user.name} alt={user.name} />
+              <img className="user-avatar" src={user.avatar_url || "https://ui-avatars.com/api/?name=" + user.name} alt={user.name} />
               <div className="user-info-min">
                 <span className="user-name-min">{user.name}</span>
                 {quota?.is_admin && <span className="admin-tag">Admin</span>}
               </div>
               <div className="user-actions-row">
                 {quota?.is_admin && (
-                   <button className="icon-btn" onClick={() => window.location.href = '#/admin'} title="Admin">
+                  <button className="icon-btn" onClick={() => window.location.href = '#/admin'} title="Admin">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                   </button>
+                  </button>
                 )}
                 <button className="icon-btn logout" onClick={logout} title="Logout">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
@@ -350,9 +359,9 @@ export default function App() {
                             {msg.content}
                           </div>
                           {msg.token_usage && (
-                             <div className="message-meta">
-                               {msg.token_usage.total_tokens.toLocaleString()} tokens
-                             </div>
+                            <div className="message-meta">
+                              {msg.token_usage.total_tokens.toLocaleString()} tokens
+                            </div>
                           )}
                         </div>
                       )}
@@ -360,14 +369,16 @@ export default function App() {
                   </div>
                 ))}
                 {loading && (
-                   <div className="message-row model">
-                     <div className="message-bubble loading-bubble">
-                       <span className="dot-typing"></span>
-                     </div>
-                   </div>
+                  <div className="message-row model">
+                    <div className="message-bubble loading-bubble">
+                      <div className="dot-typing" />
+                    </div>
+                  </div>
                 )}
                 {error && <div className="chat-error-toast">{error}</div>}
+                <div ref={messagesEndRef} />
               </div>
+
             )}
           </div>
 
@@ -394,7 +405,7 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <p className="chat-disclaimer">VizAgent may refine previous results based on your context.</p>
+            <p className="chat-disclaimer">VizAgentAI may make mistakes. Double-check all generated visualization.</p>
           </div>
         </main>
       </div>

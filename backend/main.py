@@ -205,7 +205,17 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
 
         
         raw_json = ""
+        prompt_tokens = 0
+        completion_tokens = 0
+        
         for event in events:
+            # Capture token usage if present
+            if hasattr(event, "usage_metadata") and event.usage_metadata:
+                usage = event.usage_metadata
+                prompt_tokens = usage.prompt_token_count or prompt_tokens
+                completion_tokens = usage.candidates_token_count or completion_tokens
+                logger.info(f"[ADK USAGE] Prompt: {prompt_tokens}, Completion: {completion_tokens}")
+
             # Debug log
             logger.error(f"[ADK EVENT] Author: {event.author}, Type: {type(event)}, Final: {event.is_final_response()}, Partial: {getattr(event, 'partial', 'N/A')}")
             
@@ -224,15 +234,8 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
         if not raw_json:
             logger.error("[ADK] No final response detected in event stream.")
             # Fallback: if we didn't get a final response, let's look at all events and take the last one with text
-            # but for now, let's keep the error to see the logs
             raise ValueError("No final response from agent. Check backend logs for event stream.")
 
-
-        
-        # Token usage is typically handled differently in ADK events
-        # For now, we set to 0 to avoid crashing
-        prompt_tokens = 0
-        completion_tokens = 0
 
         
         token_usage = TokenUsage(

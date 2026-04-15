@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "target": "viz",
     "public": "dist",
     "ignore": [
       "firebase.json",

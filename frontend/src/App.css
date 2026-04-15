@@ -475,17 +475,26 @@ body {
 }
 
 /* Loading dots */
+.loading-bubble {
+  padding: 24px 44px !important;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 80px;
+}
+
 .dot-typing {
   position: relative;
   left: -9999px;
-  width: 6px;
-  height: 6px;
-  border-radius: 3px;
+  width: 7px;
+  height: 7px;
+  border-radius: 5px;
   background-color: var(--accent);
   color: var(--accent);
   box-shadow: 9984px 0 0 0 var(--accent), 9999px 0 0 0 var(--accent), 10014px 0 0 0 var(--accent);
   animation: dotTyping 1.5s infinite linear;
 }
+
 
 @keyframes dotTyping {
   0% { box-shadow: 9984px 0 0 0 var(--accent), 9999px 0 0 0 var(--accent), 10014px 0 0 0 var(--accent); }
