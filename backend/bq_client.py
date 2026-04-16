@@ -14,8 +14,10 @@ load_dotenv()
 PROJECT_ID = os.getenv("GOOGLE_CLOUD_PROJECT")
 BQ_LOCATION = os.getenv("BIGQUERY_LOCATION", "asia-southeast2")
 
-# Hardcoded list of allowed datasets (= companies)
-ALLOWED_DATASETS = ["pis", "igr", "kingpack"]
+# Removed static ALLOWED_DATASETS to ensure it's always fresh from Firestore.
+# Import get_allowed_datasets where needed.
+from firestore_config import get_allowed_datasets
+
 
 
 class BQClient:

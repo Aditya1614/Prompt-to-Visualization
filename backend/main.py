@@ -23,7 +23,8 @@ from google.genai import types
 
 from agent import root_agent
 from data_manager import data_manager
-from bq_client import bq, ALLOWED_DATASETS
+from bq_client import bq
+from firestore_config import get_allowed_datasets
 from auth import (
     build_lark_auth_url,
     exchange_code_for_token,
@@ -400,8 +401,9 @@ async def get_user_quota(user: dict = Depends(get_current_user)):
 async def list_tables(dataset: str = "", user: dict = Depends(get_current_user)):
     """List available BigQuery tables for the given dataset (company)."""
     # Force reload
-    if not dataset or dataset not in ALLOWED_DATASETS:
-        raise HTTPException(status_code=400, detail=f"Invalid dataset. Allowed: {ALLOWED_DATASETS}")
+    allowed = get_allowed_datasets()
+    if not dataset or dataset not in allowed:
+        raise HTTPException(status_code=400, detail=f"Invalid dataset. Allowed: {allowed}")
     try:
         tables_data = bq.list_tables(dataset)
         email = user.get("email", "")
@@ -471,7 +473,8 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
         # BigQuery mode — pre-fetch ALL columns into a DataFrame
         # This way the agent treats it identically to JSON paste mode
         table_name = request.table_name
-        dataset = request.dataset or ALLOWED_DATASETS[0]
+        allowed = get_allowed_datasets()
+        dataset = request.dataset or (allowed[0] if allowed else "pis")
         
         # Enforce ACL
         if not has_datamart_access(email, dataset, table_name):
@@ -636,7 +639,12 @@ async def admin_sync_datamarts(user: dict = Depends(get_current_user)):
     """Sync list of tables from BigQuery datasets and append to config."""
     require_admin(user)
     available = []
-    for dataset in ALLOWED_DATASETS:
+    allowed = get_allowed_datasets()
+    if not allowed:
+        logger.warning("[SYNC] No allowed datasets configured in Firestore. Skipping sync to prevent accidental deletion.")
+        return {"status": "error", "message": "No allowed datasets configured. Please check prompt_to_viz_config/allowed_datasets in Firestore."}
+
+    for dataset in allowed:
         try:
             tables = bq.list_tables(dataset)
             for t in tables:
@@ -644,6 +652,10 @@ async def admin_sync_datamarts(user: dict = Depends(get_current_user)):
         except Exception as e:
             logger.error(f"[BQ SYNC ERROR] Dataset {dataset}: {e}")
             
+    if not available:
+        logger.warning("[SYNC] BigQuery returned 0 tables for all allowed datasets. Skipping sync to prevent accidental deletion.")
+        return {"status": "error", "message": "No tables found in BigQuery datasets. Check your BQ permissions or dataset names."}
+
     updated = sync_datamarts(available)
     return {"status": "ok", "synced_count": len(available), "total_configured": len(updated)}
 
