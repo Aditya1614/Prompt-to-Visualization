@@ -211,7 +211,7 @@ export default function App() {
           <div className="sidebar-top">
             <div className="sidebar-brand">
               <span className="sparkle-icon">✨</span>
-              <h1 className="sidebar-title">VizAgent</h1>
+              <h1 className="sidebar-title">VizAgentAI</h1>
             </div>
 
             {/* Quota bar */}
@@ -316,6 +316,80 @@ export default function App() {
           </div>
         </aside>
 
+        {/* ─── Mobile Header (visible only on small screens) ─── */}
+        <div className="mobile-header">
+          <div className="mobile-header-top">
+            <div className="mobile-brand">
+              <span className="sparkle-icon">✨</span>
+              <h1>VizAgentAI</h1>
+            </div>
+            <div className="mobile-actions">
+              {quota?.is_admin && (
+                <button className="icon-btn" onClick={() => window.location.href = '#/admin'} title="Admin">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                </button>
+              )}
+              <img className="mobile-user-avatar" src={user.avatar_url || "https://ui-avatars.com/api/?name=" + user.name} alt={user.name} />
+              <button className="icon-btn logout" onClick={logout} title="Logout">
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" /><line x1="21" y1="12" x2="9" y2="12" /></svg>
+              </button>
+            </div>
+          </div>
+          <div className="mobile-selectors">
+            {/* Company Dropdown */}
+            <div className="dropdown-wrapper">
+              <button
+                className="dropdown-trigger"
+                onClick={() => { setCompanyDropdownOpen(!companyDropdownOpen); setTableDropdownOpen(false); }}
+              >
+                <span>{companyLabel || "Company..."}</span>
+                <svg className={`chevron ${companyDropdownOpen ? "open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+              {companyDropdownOpen && (
+                <div className="dropdown-menu">
+                  {COMPANIES.map((c) => (
+                    <button key={c.value} className="dropdown-item" onClick={() => handleCompanySelect(c.value)}>{c.label}</button>
+                  ))}
+                </div>
+              )}
+            </div>
+            {/* Data Mart Dropdown */}
+            <div className="dropdown-wrapper">
+              <button
+                className={`dropdown-trigger ${!selectedCompany || tablesLoading ? "disabled" : ""}`}
+                onClick={() => { if (selectedCompany && !tablesLoading) { setTableDropdownOpen(!tableDropdownOpen); setCompanyDropdownOpen(false); } }}
+                disabled={!selectedCompany || tablesLoading}
+              >
+                <span>{tablesLoading ? "Loading..." : selectedTable || "Data Mart..."}</span>
+                <svg className={`chevron ${tableDropdownOpen ? "open" : ""}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M6 9l6 6 6-6" /></svg>
+              </button>
+              {tableDropdownOpen && (
+                <div className="dropdown-menu scrollable">
+                  <div className="dropdown-search-wrapper">
+                    <input
+                      type="text"
+                      className="dropdown-search-input"
+                      placeholder="Search tables..."
+                      value={tableSearch}
+                      onChange={(e) => setTableSearch(e.target.value)}
+                      autoFocus
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  <div className="dropdown-items-container">
+                    {tables.filter(t => t.name.toLowerCase().includes(tableSearch.toLowerCase())).map((t) => (
+                      <button key={t.name} className="dropdown-item" onClick={() => handleTableSelect(t.name)}>{t.name}</button>
+                    ))}
+                    {tables.filter(t => t.name.toLowerCase().includes(tableSearch.toLowerCase())).length === 0 && (
+                      <div className="dropdown-no-results">No tables found.</div>
+                    )}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+
         {/* ─── Main Chat Area ─── */}
         <main className="chat-main">
           <div className="messages-scroller">
@@ -405,7 +479,7 @@ export default function App() {
                 </svg>
               </button>
             </div>
-            <p className="chat-disclaimer">VizAgentAI may make mistakes. Double-check all generated visualization.</p>
+            <p className="chat-disclaimer">VizAgentAI can make mistakes. Please double-check any generated visualization.</p>
           </div>
         </main>
       </div>
