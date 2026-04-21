@@ -211,7 +211,9 @@ export default function App() {
           <div className="sidebar-top">
             <div className="sidebar-brand">
               <span className="sparkle-icon">✨</span>
-              <h1 className="sidebar-title">VizAgentAI</h1>
+              <h1 className="sidebar-title">
+                VizAgentAI <span className="beta-badge">Beta</span>
+              </h1>
             </div>
 
             {/* Quota bar */}
@@ -321,7 +323,9 @@ export default function App() {
           <div className="mobile-header-top">
             <div className="mobile-brand">
               <span className="sparkle-icon">✨</span>
-              <h1>VizAgentAI</h1>
+              <h1 className="sidebar-title">
+                VizAgent <span className="beta-badge">Beta</span>
+              </h1>
             </div>
             <div className="mobile-actions">
               {quota?.is_admin && (

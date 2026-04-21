@@ -22,9 +22,11 @@ export default function LoginPage() {
         {/* Brand header */}
         <div className="login-brand">
           <span className="login-sparkle">✨</span>
-          <h1 className="login-title">AI Visualization</h1>
+          <h1 className="login-title">
+            VizAgentAI <span className="beta-badge">Beta</span>
+          </h1>
           <p className="login-subtitle">
-            Prompt-to-Visualization powered by Gemini
+            Developed by IT Data Analyst Team · Powered by Gemini
           </p>
         </div>
 
