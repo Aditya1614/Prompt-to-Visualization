@@ -1,6 +1,6 @@
 # Prompt-to-Visualization
 
-<img width="1350" height="630" alt="image" src="https://github.com/user-attachments/assets/526bfc9b-6a2b-4927-875d-f4f28ff99d5f" />
+<img width="1258" height="620" alt="image" src="https://github.com/user-attachments/assets/b8d275c1-40f2-4e0e-87ba-42c3ad118fa2" />
 
 > **Enterprise-ready AI data visualization generator** — Securely ask questions about your business data in natural language and get interactive charts with AI insights. Powered by Gemini 2.0 Flash, BigQuery, and Firestore.
 
@@ -193,4 +193,4 @@ The project includes several CLI tools for maintenance:
 
 ## License
 
-Internal use only — property of PT Sukanda Djaya (Diamond Group).
+Internal use only — property of PT Porto Indonesia Sejahtera.
