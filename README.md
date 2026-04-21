@@ -29,41 +29,52 @@ The system uses a **Google ADK agent** (Gemini 2.0 Flash) that autonomously insp
 ## Architecture
 
 ```mermaid
-flowchart TD
-    subgraph Frontend ["Frontend (Firebase Hosting)"]
-        UI["App.jsx<br>Conversational UI"]
-        ADM["AdminPage.jsx<br>ACL & Quota Mgmt"]
-        LGN["LoginPage.jsx<br>Lark SSO Flow"]
-        CR["ChartRenderer.jsx<br>(Recharts)"]
-    end
+flowchart LR
 
-    subgraph Backend ["Backend (Cloud Run)"]
-        API["main.py <br> FastAPI Endpoints"]
-        ATH["auth.py<br>Lark OAuth & JWT"]
-        AGENT["agent.py<br>Google ADK Agent<br>(Gemini 2.0 Flash)"]
-        DM["data_manager.py<br>Pandas Engine"]
-        FS["firestore_config.py<br>Config & User Store"]
-        TQ["token_quota.py<br>Usage Tracking"]
-        BQ["bq_client.py<br>BigQuery Client"]
-    end
+subgraph FE [Frontend - Firebase Hosting]
+    UI["App.jsx\nConversational UI"]
+    ADM["AdminPage.jsx\nACL & Quota"]
+    LGN["LoginPage.jsx\nLark SSO"]
+    CR["ChartRenderer.jsx\nRecharts"]
+end
 
-    subgraph External ["Managed Services"]
-        LARK["Lark Open Platform<br>Auth & Hierarchy"]
-        FS_DB["Cloud Firestore<br>Audit & Config"]
-        BQW["BigQuery<br>Data Warehouse"]
-        VERTEX["Vertex AI<br>Gemini 2.0 Flash"]
-    end
+subgraph BE [Backend - Cloud Run]
+    API["FastAPI\nmain.py"]
+    ATH["Auth Service\nauth.py"]
+    AG["AI Agent\nagent.py"]
+    DM["Data Manager\nPandas Engine"]
+    BQC["BigQuery Client"]
+    TQ["Token Quota Manager"]
+    FSC["Data Mart Config"]
+end
 
-    UI -- "JWT Auth" --> API
-    ADM -- "Admin API" --> API
-    LGN -- "OAuth2" --> LARK
-    API -- "CRUD Settings" --> FS_DB
-    API -- "Fetch Data" --> BQ
-    BQ -- "SQL" --> BQW
-    API -- "Run Agent" --> AGENT
-    AGENT -- "Contextual Query" --> DM
-    AGENT -- "Inference" --> VERTEX
-    TQ -- "Deduct Quota" --> FS_DB
+subgraph GCP [Google Cloud Platform]
+    BQ["BigQuery"]
+    VERTEX["Vertex AI\nGemini"]
+    FS["Firestore"]
+end
+
+subgraph EXT [External]
+    LARK["Lark Platform"]
+end
+
+UI --> API
+ADM --> API
+LGN --> ATH
+ATH --> LARK
+
+API --> AG
+AG --> DM
+DM --> BQC
+BQC --> BQ
+
+AG --> VERTEX
+
+API --> FSC
+FSC --> FS
+
+API --> TQ
+TQ --> FS
 ```
 
 ---
