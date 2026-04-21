@@ -10,6 +10,7 @@ import os
 import re
 import secrets
 import uuid
+from datetime import datetime
 
 from dotenv import load_dotenv
 from fastapi import FastAPI, HTTPException, Depends, Request
@@ -177,8 +178,16 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
     # Compound input for the agent
     user_input = f"""data_id: {data_id}
 
+### NOTE ON DATA TYPES
+- All date/time columns have ALREADY been converted to pandas datetime objects.
+- Use them directly: `df[df['posting_date'] > ...]` is valid. 
+- Do NOT use `df['col'] = pd.to_datetime(...)`.
+
 ### CONVERSATION HISTORY
 {history_context if history_context else "No previous history."}
+
+### CURRENT DATE
+{datetime.now().strftime('%Y-%m-%d')}
 
 ### CURRENT USER REQUEST
 {prompt}
@@ -206,6 +215,7 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
 
         
         raw_json = ""
+        last_text = ""
         prompt_tokens = 0
         completion_tokens = 0
         
@@ -217,8 +227,18 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
                 completion_tokens = usage.candidates_token_count or completion_tokens
                 logger.info(f"[ADK USAGE] Prompt: {prompt_tokens}, Completion: {completion_tokens}")
 
-            # Debug log
-            logger.error(f"[ADK EVENT] Author: {event.author}, Type: {type(event)}, Final: {event.is_final_response()}, Partial: {getattr(event, 'partial', 'N/A')}")
+            # Improved debugging log
+            author = getattr(event, "author", "Unknown")
+            is_final = event.is_final_response()
+            logger.info(f"[ADK EVENT] Author: {author}, Type: {type(event)}, Final: {is_final}")
+
+            # Log parts if available to see what the agent is thinking/doing
+            if hasattr(event, 'content') and event.content and event.content.parts:
+                for i, part in enumerate(event.content.parts):
+                    if part.text:
+                        logger.info(f"  [PART {i} TEXT] {part.text[:200]}...")
+                    if part.function_call:
+                        logger.info(f"  [PART {i} TOOL CALL] {part.function_call.name}({part.function_call.args})")
             
             # Check for errors
             if hasattr(event, 'errors') and event.errors:
@@ -226,16 +246,20 @@ async def run_agent_pipeline(prompt: str, data_id: str, history: list[dict] = No
                 raise ValueError(f"Agent error event: {event.errors}")
 
             # Collect content from final response
-            if event.is_final_response() and event.content and event.content.parts:
-                text = event.content.parts[0].text
-                if text:
-                    raw_json = text
-                    # We continue to see if there are more events, but usually final is final
+            if getattr(event, 'content', None) and getattr(event.content, 'parts', None): # Safely access content and parts
+                 for part in event.content.parts:
+                    if getattr(part, 'text', None): # Safely access text
+                         last_text = part.text # Fallback tracker
+                         if getattr(event, 'is_final_response', lambda: False)(): # Safely call is_final_response
+                            raw_json = part.text
         
         if not raw_json:
-            logger.error("[ADK] No final response detected in event stream.")
-            # Fallback: if we didn't get a final response, let's look at all events and take the last one with text
-            raise ValueError("No final response from agent. Check backend logs for event stream.")
+            if last_text:
+                logger.warning("[ADK WARNING] No final response detected in event stream, using last generated text as fallback.")
+                raw_json = last_text
+            else:
+                logger.error("[ADK ERROR] No final response detected in event stream, and no fallback text available.")
+                raise ValueError("No text response from agent. Check backend logs for event stream.")
 
 
         
@@ -293,12 +317,22 @@ def parse_agent_response(raw: str) -> VisualizeResponse:
             reject_reason=data.get("reject_reason", "Your question is not related to data visualization."),
         )
 
-    # Build chart config
+    # Validate that the agent actually queried data (not just a stub response)
     chart_config_data = data.get("chart_config", {})
+    chart_data = chart_config_data.get("data", [])
+    
+    if not chart_config_data or not chart_data:
+        logger.warning(f"[VALIDATION] Agent returned response without chart data. Keys present: {list(data.keys())}")
+        return VisualizeResponse(
+            rejected=True,
+            reject_reason="The AI agent failed to query the data. Please try again with a more specific question.",
+        )
+
+    # Build chart config
     chart_config = ChartConfig(
         x_field=chart_config_data.get("x_field", ""),
         y_field=chart_config_data.get("y_field", ""),
-        data=chart_config_data.get("data", []),
+        data=chart_data,
         title=chart_config_data.get("title", ""),
         x_label=chart_config_data.get("x_label", ""),
         y_label=chart_config_data.get("y_label", ""),
@@ -486,7 +520,7 @@ async def visualize(request: VisualizeRequest, user: dict = Depends(get_current_
         try:
             rows = bq.fetch_all_rows(table_name, dataset)
             data_manager.store_data_with_id(data_id, rows)
-            logger.error(f"[BQ] Loaded {len(rows)} rows from {dataset}.{table_name}")
+            logger.info(f"[BQ] Loaded {len(rows)} rows from {dataset}.{table_name}")
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to load table data: {str(e)}")
 
